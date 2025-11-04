@@ -56,3 +56,17 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
+    
+class Meal(models.Model):
+    mealid = models.CharField(max_length=50, unique=True)
+    title = models.CharField(max_length=200)
+    category = models.JSONField()  # <-- store one or many categories
+    area = models.CharField(max_length=200, blank=True, null=True)
+    instructions = models.TextField(blank=True, null=True)
+    ingredients = models.JSONField()
+    image = models.URLField(blank=True, null=True)
+    youtube = models.URLField(blank=True, null=True)
+    source = models.URLField(blank=True, null=True)
+
+    def __str__(self):
+        return self.title

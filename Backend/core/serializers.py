@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile 
+from .models import User, Profile ,Meal
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -54,3 +54,23 @@ class UserDetailSerializer(serializers.ModelSerializer):
             profile.save()
 
         return instance
+    
+class MealSerializer(serializers.ModelSerializer):
+    # JSONFields automatically handled by DRF, but we can make them more readable
+    ingredients = serializers.JSONField()
+    category = serializers.JSONField()  # in case you made category JSONField
+
+    class Meta:
+        model = Meal
+        fields = [
+            'id',         # Django’s default primary key
+            'mealid',     # JSON 'id' (unique meal identifier)
+            'title',
+            'category',
+            'area',
+            'instructions',
+            'ingredients',
+            'image',
+            'youtube',
+            'source'
+        ]
