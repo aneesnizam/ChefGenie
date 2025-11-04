@@ -1,0 +1,55 @@
+# ==========================
+# Python / Django
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# SQLite 
+db.sqlite3
+db.sqlite3-journal
+
+# Local environment variables
+.env
+*.env
+
+# Django static & media (collected/generated files)
+static/
+staticfiles/
+media/
+
+# Django logs
+*.log
+
+# Local settings file (if used)
+local_settings.py
+
+# ==========================
+# Node / Tailwind
+# ==========================
+node_modules/
+package-lock.json
+npm-debug.log
+yarn-error.log
+
+# Tailwind build output (if using Django’s static folder for it)
+build/
+dist/
+
+# ==========================
+# IDE / Editor
+# ==========================
+.vscode/
+.idea/
+
+# ==========================
+# System / OS
+# ==========================
+.DS_Store
+Thumbs.db
+desktop.ini
