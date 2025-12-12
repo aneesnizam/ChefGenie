@@ -399,7 +399,7 @@ export default function ProfilePage() {
                       key={recipe.mealid}
                       idMeal={recipe.mealid}
                       strMeal={recipe.title}
-                      strMealThumb={recipe.image}
+                      strMealThumb={recipe.image || "https://i.pinimg.com/1200x/93/10/14/931014d8e72841cf1cef6b2942e68322.jpg"}
                       strCategory={recipe.category}
                       strArea={recipe.area}
                       isFavorite={favorites.has(recipe.mealid)}
@@ -576,47 +576,69 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "history" && (
-            <div>
-              {historyLoading ? (
-                <div className="flex justify-center items-center py-20">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-muted-foreground text-lg">
-                      Loading history...
-                    </p>
-                  </div>
-                </div>
-              ) : recentViews.length === 0 ? (
-                <div className="text-center py-20">
-                  <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Clock className="w-10 h-10 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-2xl font-semibold text-foreground mb-3">
-                    No recent views
-                  </h3>
-                  <p className="text-muted-foreground max-w-md mx-auto">
-                    Start viewing recipes to see them here!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {recentViews.map((recipe) => (
-                    <RecipeCard
-                      key={recipe.mealid}
-                      idMeal={recipe.mealid}
-                      strMeal={recipe.title}
-                      strMealThumb={recipe.image}
-                      strCategory={recipe.category}
-                      strArea={recipe.area}
-                      isFavorite={favorites.has(recipe.mealid)}
-                      onToggleFavorite={toggleFavorite}
-                      onClick={(id) => navigate(`/app/recipeapi/${id}`)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+  <div>
+    
+    {historyLoading ? (
+  <div className="flex justify-center items-center py-20">
+    <div className="text-center">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-muted-foreground text-lg">
+        Loading history...
+      </p>
+    </div>
+  </div>
+) : recentViews.length === 0 ? (
+  <div className="text-center py-20">
+    <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+      <Clock className="w-10 h-10 text-muted-foreground" />
+    </div>
+    <h3 className="text-2xl font-semibold text-foreground mb-3">
+      No recent views
+    </h3>
+    <p className="text-muted-foreground max-w-md mx-auto">
+      Start viewing recipes to see them here!
+    </p>
+  </div>
+) : (
+  // 🔥 VERTICAL FULL-WIDTH LIST (NO GRID)
+  <div className="space-y-6">
+    {recentViews.map((recipe) => (
+      <div
+        key={recipe.mealid}
+        onClick={() => navigate(`/app/recipeapi/${recipe.mealid}`)}
+        className="w-full bg-card rounded-2xl border border-border p-4 flex gap-4 hover:shadow-md transition-shadow cursor-pointer"
+      >
+        <img
+          src={recipe.image || "https://i.pinimg.com/1200x/93/10/14/931014d8e72841cf1cef6b2942e68322.jpg"}
+          alt={recipe.title}
+          className="w-24 h-24 rounded-lg object-cover"
+        />
+
+        <div className="flex-1">
+          <h3 className="font-semibold mb-1">{recipe.title}</h3>
+
+          <p className="text-sm text-muted-foreground mb-2">
+            {recipe.category} • {recipe.area}
+          </p>
+
+          <div className="flex gap-2">
+            <span className="px-2 py-1 text-xs border rounded-md">
+              {recipe.category}
+            </span>
+
+            <span className="px-2 py-1 text-xs bg-secondary text-white rounded-md">
+              Viewed recently
+            </span>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+</div>
+)}
+
+
 
           {activeTab === "settings" && (
             <div className="space-y-6">
