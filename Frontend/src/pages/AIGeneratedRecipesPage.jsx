@@ -1,0 +1,251 @@
+import { useEffect, useState } from "react";
+import { Sparkles, Share2, Trash2, User } from "lucide-react";
+import RecipeCard from "../components/RecipeCard";
+import { useNavigate } from "react-router-dom";
+import axiosInstance from "../services/axios";
+
+export default function AIGeneratedRecipesPage() {
+  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState("my"); // "my" or "public"
+  const [myRecipes, setMyRecipes] = useState([]);
+  const [publicRecipes, setPublicRecipes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [favorites, setFavorites] = useState(new Set());
+  const [deletingId, setDeletingId] = useState(null);
+  const [sharingId, setSharingId] = useState(null);
+
+  // Fetch favorites on mount
+  useEffect(() => {
+    axiosInstance
+      .get("/api/favorites/")
+      .then((res) => {
+        const favoriteMealIds = new Set(
+          res.data.favorites.map((fav) => fav.meal.mealid)
+        );
+        setFavorites(favoriteMealIds);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch favorites:", err);
+      });
+  }, []);
+
+  // Fetch recipes when view mode changes
+  useEffect(() => {
+    fetchRecipes();
+  }, [viewMode]);
+
+  const fetchRecipes = async () => {
+    setLoading(true);
+    try {
+      if (viewMode === "my") {
+        const response = await axiosInstance.get("/api/ai-recipes/");
+        setMyRecipes(response.data.recipes || []);
+      } else {
+        const response = await axiosInstance.get(
+          "/api/ai-recipes/?public=true"
+        );
+        setPublicRecipes(response.data.recipes || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI recipes:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleFavorite = (id) => {
+    setFavorites((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+
+    axiosInstance
+      .post("/api/favorites/toggle/", { mealid: id })
+      .then((res) => {
+        setFavorites((prev) => {
+          const newSet = new Set(prev);
+          if (res.data.is_favorited) {
+            newSet.add(id);
+          } else {
+            newSet.delete(id);
+          }
+          return newSet;
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to toggle favorite:", err);
+      });
+  };
+
+  const handleShare = async (mealId) => {
+    setSharingId(mealId);
+    try {
+      await axiosInstance.post("/api/ai-recipes/share/", { meal_id: mealId });
+      // Refresh recipes
+      await fetchRecipes();
+      alert("Recipe shared successfully!");
+    } catch (err) {
+      console.error("Failed to share recipe:", err);
+      alert("Failed to share recipe. Please try again.");
+    } finally {
+      setSharingId(null);
+    }
+  };
+
+  const handleDelete = async (mealId) => {
+    if (!window.confirm("Are you sure you want to delete this recipe?")) {
+      return;
+    }
+
+    setDeletingId(mealId);
+    try {
+      await axiosInstance.delete(`/api/ai-recipes/${mealId}/`);
+      // Remove from local state
+      setMyRecipes((prev) => prev.filter((recipe) => recipe.id !== mealId));
+      alert("Recipe deleted successfully!");
+    } catch (err) {
+      console.error("Failed to delete recipe:", err);
+      alert("Failed to delete recipe. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const recipes = viewMode === "my" ? myRecipes : publicRecipes;
+
+  return (
+    <div className="min-h-screen bg-background px-4 py-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-10 text-center">
+          <div className="inline-flex items-center justify-center mb-4">
+            <Sparkles className="w-8 h-8 text-primary mr-3 animate-pulse" />
+            <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+              AI Generated Recipes
+            </h1>
+          </div>
+        </div>
+
+        {/* Toggle Switch */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex items-center bg-card rounded-xl p-1 border-2 border-border shadow-sm">
+            <button
+              onClick={() => setViewMode("my")}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                viewMode === "my"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              My AI Recipes
+            </button>
+            <button
+              onClick={() => setViewMode("public")}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                viewMode === "public"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              Public AI Recipes
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-muted-foreground text-lg">
+                Loading recipes...
+              </p>
+            </div>
+          </div>
+        ) : recipes.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+              <Sparkles className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <h3 className="text-2xl font-semibold text-foreground mb-3">
+              {viewMode === "my"
+                ? "No AI recipes yet"
+                : "No public recipes yet"}
+            </h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              {viewMode === "my"
+                ? "Start generating recipes with AI to see them here!"
+                : "Be the first to share an AI-generated recipe!"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {recipes.map((recipe) => (
+              <div key={recipe.id} className="relative">
+                <RecipeCard
+                  idMeal={recipe.mealid}
+                  strMeal={recipe.title}
+                  strMealThumb={"https://i.pinimg.com/1200x/50/2d/9a/502d9a8cf410d2fb347d5e1fff548f44.jpg"}
+                  strCategory={
+                    Array.isArray(recipe.category)
+                      ? recipe.category.join(", ")
+                      : recipe.category || "Unknown"
+                  }
+                  strArea={recipe.area || "Unknown"}
+                  isFavorite={favorites.has(recipe.mealid)}
+                  onToggleFavorite={toggleFavorite}
+                  onClick={(id) => navigate(`/app/recipeapi/${id}`)}
+                />
+
+                {/* Action Buttons - Only show for user's own recipes in "my" view */}
+                {viewMode === "my" && (
+                  <div className="absolute bottom-16 right-3 flex gap-2 z-10">
+                    {!recipe.is_public && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShare(recipe.id);
+                        }}
+                        disabled={sharingId === recipe.id}
+                        className="p-2 rounded-full bg-green-500 text-white shadow-lg hover:bg-green-600 transition disabled:opacity-50"
+                        title="Share with Friends"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(recipe.id);
+                      }}
+                      disabled={deletingId === recipe.id}
+                      className="p-2 rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600 transition disabled:opacity-50"
+                      title="Delete Recipe"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Creator Name for Public Recipes */}
+                {viewMode === "public" && recipe.user_name && (
+                  <div className="absolute top-3 left-3 z-10">
+                    <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold">
+                      <User className="w-3 h-3" />
+                      <span>{recipe.user_name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

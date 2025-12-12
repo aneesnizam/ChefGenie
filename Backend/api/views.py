@@ -39,7 +39,31 @@ class RecipeDetail(APIView):
     def get(self, request, id):
         try:
             # Search meal by mealid (string in your JSON data)
-            meal = Meal.objects.filter(mealid=id).first()
+            # If user is authenticated, prefer their recipe, otherwise get any public or system recipe
+            if request.user.is_authenticated:
+                meal = Meal.objects.filter(
+                    mealid=id,
+                    user=request.user
+                ).first()
+                # If not found, try public recipes or recipes without user
+                if not meal:
+                    meal = Meal.objects.filter(
+                        mealid=id,
+                        is_public=True
+                    ).first()
+                # If still not found, try system recipes (user=None)
+                if not meal:
+                    meal = Meal.objects.filter(
+                        mealid=id,
+                        user__isnull=True
+                    ).first()
+            else:
+                # For unauthenticated users, only show public or system recipes
+                meal = Meal.objects.filter(
+                    mealid=id
+                ).exclude(
+                    user__isnull=False, is_public=False
+                ).first()
 
             if not meal:
                 return Response(
@@ -397,9 +421,8 @@ class SpoonacularRecipeDetail(APIView):
         return Response(response.json())
 
 
-
-
 getcontext().prec = 9
+
 
 def parse_quantity_to_decimal(q):
     """
@@ -443,7 +466,6 @@ def parse_quantity_to_decimal(q):
         raise ValueError(f"Invalid numeric quantity: {q}") from e
 
 
-
 class GroceryListCreate(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -471,17 +493,20 @@ class GroceryListCreate(APIView):
 
                 # Basic validation
                 if not raw_name:
-                    errors.append({"index": idx, "error": "ingredient_name is required", "data": item})
+                    errors.append(
+                        {"index": idx, "error": "ingredient_name is required", "data": item})
                     continue
                 if not raw_unit:
-                    errors.append({"index": idx, "error": "unit is required", "data": item})
+                    errors.append(
+                        {"index": idx, "error": "unit is required", "data": item})
                     continue
 
                 # Parse quantity (supports "1/2", "1 1/2", "100", "1.5")
                 try:
                     qty_decimal = parse_quantity_to_decimal(raw_qty)
                 except ValueError as e:
-                    errors.append({"index": idx, "error": str(e), "data": item})
+                    errors.append(
+                        {"index": idx, "error": str(e), "data": item})
                     continue
 
                 # Try to find existing item: same user, same ingredient (case-insensitive), same unit
@@ -523,7 +548,8 @@ class GroceryListCreate(APIView):
                         obj = serializer.save(user=request.user)
                         created.append(GroceryListSerializer(obj).data)
                     else:
-                        errors.append({"index": idx, "errors": serializer.errors, "data": data})
+                        errors.append(
+                            {"index": idx, "errors": serializer.errors, "data": data})
 
             # if any validation errors occurred, rollback and return them
             if errors:
@@ -572,7 +598,8 @@ class ListFavorites(APIView):
         Returns a list of favorite meals ordered by most recently added.
         """
         try:
-            favorites = Favorite.objects.filter(user=request.user).order_by('-created_at')
+            favorites = Favorite.objects.filter(
+                user=request.user).order_by('-created_at')
             serializer = FavoriteSerializer(favorites, many=True)
             return Response(
                 {
@@ -599,7 +626,7 @@ class ToggleFavorite(APIView):
         Returns: {"is_favorited": bool, "message": "string", "favorite": object or null}
         """
         mealid = request.data.get("mealid")
-        
+
         if not mealid:
             return Response(
                 {"error": "Missing 'mealid' in request."},
@@ -609,7 +636,7 @@ class ToggleFavorite(APIView):
         try:
             # Find meal by mealid (string identifier)
             meal = Meal.objects.filter(mealid=mealid).first()
-            
+
             if not meal:
                 return Response(
                     {"error": f"No meal found with mealid '{mealid}'."},
@@ -666,8 +693,9 @@ class RecentRecipeViews(APIView):
         """
         try:
             # Get 5 most recent views, removing duplicates (latest view per meal)
-            views = RecipeView.objects.filter(user=request.user).order_by('-viewed_at')
-            
+            views = RecipeView.objects.filter(
+                user=request.user).order_by('-viewed_at')
+
             # Remove duplicates, keeping the most recent view for each mealid
             seen_mealids = set()
             unique_views = []
@@ -689,5 +717,216 @@ class RecentRecipeViews(APIView):
         except Exception as e:
             return Response(
                 {"error": f"Failed to fetch recent views: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SaveAIRecipe(APIView):
+    """Save an AI-generated recipe to the database"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Save an AI-generated recipe.
+        Expected payload: {
+            "idMeal": "string",
+            "strMeal": "...",
+            "strCategory": "...",
+            "strArea": "...",
+            "strInstructions": "...",
+            "strMealThumb": "...",
+            "strYoutube": "",
+            "strIngredient1": "...",
+            "strMeasure1": "...",
+            ... (all ingredient/measure fields)
+        }
+        """
+        try:
+            meal_data = request.data
+
+            # Extract ingredients and measures
+            ingredients_list = []
+            for i in range(1, 21):
+                ingredient = meal_data.get(f'strIngredient{i}', '').strip()
+                if ingredient:
+                    measure = meal_data.get(f'strMeasure{i}', '').strip()
+                    ingredients_list.append(f"{measure} {ingredient}".strip())
+
+            # Parse category - can be string or array
+            category = meal_data.get('strCategory', 'General')
+            if isinstance(category, str):
+                category = [category] if category else ['General']
+
+            # Generate unique mealid for user (use AI prefix + timestamp)
+            import uuid
+            mealid = meal_data.get(
+                'idMeal', f"AI{str(uuid.uuid4())[:8].upper()}")
+
+            # Create or update meal
+            meal, created = Meal.objects.get_or_create(
+                mealid=mealid,
+                user=request.user,
+                defaults={
+                    'title': meal_data.get('strMeal', 'Untitled Recipe'),
+                    'category': category,
+                    'area': meal_data.get('strArea', ''),
+                    'instructions': meal_data.get('strInstructions', ''),
+                    'ingredients': ingredients_list,
+                    'image': None ,
+                    'youtube':None,
+                    'source': meal_data.get('strSource', ''),
+                    'is_user_added': True,
+                    'is_public': False,  # Default to private
+                }
+            )
+
+            if not created:
+                # Update existing recipe
+                meal.title = meal_data.get('strMeal', meal.title)
+                meal.category = category
+                meal.area = meal_data.get('strArea', meal.area)
+                meal.instructions = meal_data.get(
+                    'strInstructions', meal.instructions)
+                meal.ingredients = ingredients_list
+                meal.image = meal_data.get('strMealThumb', meal.image)
+                meal.youtube = meal_data.get('strYoutube', meal.youtube)
+                meal.save()
+
+            serializer = MealSerializer(meal)
+            return Response(
+                {
+                    "message": "Recipe saved successfully" if created else "Recipe updated successfully",
+                    "meal": serializer.data
+                },
+                status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to save recipe: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ListAIRecipes(APIView):
+    """List AI-generated recipes for the authenticated user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        Get all AI-generated recipes for the logged-in user.
+        Query params: ?public=true to get public recipes from all users
+        """
+        try:
+            public_only = request.GET.get('public', '').lower() == 'true'
+
+            if public_only:
+                # Get all public AI recipes from all users
+                meals = Meal.objects.filter(
+                    is_user_added=True,
+                    is_public=True
+                ).select_related('user').order_by('-created_at')
+            else:
+                # Get user's own AI recipes
+                meals = Meal.objects.filter(
+                    user=request.user,
+                    is_user_added=True
+                ).order_by('-created_at')
+
+            serializer = MealSerializer(meals, many=True)
+            return Response(
+                {
+                    "count": meals.count(),
+                    "recipes": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch AI recipes: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ShareAIRecipe(APIView):
+    """Share an AI-generated recipe (make it public)"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Mark a recipe as public.
+        Expected payload: {"meal_id": int} (Django's primary key)
+        """
+        try:
+            meal_id = request.data.get('meal_id')
+
+            if not meal_id:
+                return Response(
+                    {"error": "Missing 'meal_id' in request."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            meal = Meal.objects.filter(
+                id=meal_id,
+                user=request.user,
+                is_user_added=True
+            ).first()
+
+            if not meal:
+                return Response(
+                    {"error": "Recipe not found or you don't have permission."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            meal.is_public = True
+            meal.save()
+
+            serializer = MealSerializer(meal)
+            return Response(
+                {
+                    "message": "Recipe shared successfully",
+                    "meal": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to share recipe: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DeleteAIRecipe(APIView):
+    """Delete an AI-generated recipe"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, meal_id):
+        """
+        Delete a recipe.
+        URL param: meal_id (Django's primary key)
+        """
+        try:
+            meal = Meal.objects.filter(
+                id=meal_id,
+                user=request.user,
+                is_user_added=True
+            ).first()
+
+            if not meal:
+                return Response(
+                    {"error": "Recipe not found or you don't have permission."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            meal.delete()
+            return Response(
+                {"message": "Recipe deleted successfully"},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to delete recipe: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

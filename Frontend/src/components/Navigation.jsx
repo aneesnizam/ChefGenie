@@ -1,15 +1,18 @@
 import React from 'react';
 import { Home, BookOpen, MessageCircle, Calendar,PlusCircle , User, Moon, Sun, Sparkles } from 'lucide-react';
 import LogoImage from '../assets/logo/whiteLogoCroped.png';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 
 export default function Navigation({ isDark, onToggleTheme })  {
 
   const navigate = useNavigate();
-const navItems = [
+  const location = useLocation();
+  
+  const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'recipes', label: 'Recipes', icon: BookOpen },
+    { id: 'ai-recipes', label: 'AI Recipes', icon: Sparkles },
     { id: 'chat', label: 'Chat', icon: MessageCircle },
     // { id: 'planner', label: 'Planner', icon: Calendar },
     //  { id: 'add', label: 'Add Recipe', icon: PlusCircle  },

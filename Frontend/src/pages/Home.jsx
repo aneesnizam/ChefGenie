@@ -209,13 +209,13 @@ export default function Home() {
                   .map((_, i) => (
                     <RecipeCard
                       key={i}
-                      idMeal={""}
-                      strMeal={""}
-                      strMealThumb={""}
-                      strCategory={""} // safe fallback
-                      strArea={""} // safe fallback
-                      isFavorite={""}
-                      onToggleFavorite={""}
+                      idMeal={null}
+                      strMeal=""
+                      strMealThumb={null}
+                      strCategory=""
+                      strArea=""
+                      isFavorite={false}
+                      onToggleFavorite={null}
                       loading={true}
                     />
                   ))
@@ -224,7 +224,7 @@ export default function Home() {
                     key={recipe.id}
                     idMeal={recipe.mealid}
                     strMeal={recipe.title}
-                    strMealThumb={recipe.image}
+                    strMealThumb={recipe.image || "https://i.pinimg.com/736x/b1/2d/23/b12d235e771c190d39444f36140a9aff.jpg"}
                     strCategory={
                       Array.isArray(recipe.category)
                         ? recipe.category.join(", ")

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Send,ArrowLeft  } from "lucide-react";
+import { Sparkles, Send, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../services/axios";
 
@@ -14,18 +14,36 @@ export default function AIGenerateRecipePage() {
 
     try {
       const response = await axiosInstance.post("/api/recipe-ai/", {
-      "prompt":prompt
+        prompt: prompt,
       });
 
-     
       const data = response.data;
-      console.log(data)
+      console.log(data);
 
       if (data?.meals?.length > 0) {
-        const recipeId = data.meals[0].idMeal || "ai-generated";
-        navigate(`/app/recipe/${recipeId}`, { state: data });
+        const mealData = data.meals[0];
+
+        // Save the recipe to database
+        try {
+          const saveResponse = await axiosInstance.post(
+            "/api/ai-recipes/save/",
+            mealData
+          );
+          console.log("Recipe saved:", saveResponse.data);
+
+          // Navigate to recipe detail page using the saved meal's ID
+          const savedMeal = saveResponse.data.meal;
+          navigate(`/app/recipeapi/${savedMeal.mealid}`, {
+            state: { recipe: savedMeal, isAIGenerated: true },
+          });
+        } catch (saveError) {
+          console.error("Error saving recipe:", saveError);
+          // Still navigate even if save fails
+          const recipeId = mealData.idMeal || "ai-generated";
+          navigate(`/app/recipe/${recipeId}`, { state: data });
+        }
       } else {
-        alert("AI couldn’t generate a recipe. Try again!");
+        alert("AI couldn't generate a recipe. Try again!");
       }
     } catch (err) {
       console.error("Error generating recipe:", err);
@@ -37,16 +55,15 @@ export default function AIGenerateRecipePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br relative from-slate-900 via-purple-900 to-black text-white flex flex-col items-center justify-center p-6">
-         <button
+      <button
         onClick={() => navigate("/app/recipes")}
         className="absolute top-6 left-6 flex items-center gap-2 text-fuchsia-200 hover:text-fuchsia-400 font-medium transition-all duration-200"
       >
         <ArrowLeft className="w-5 h-5" />
         Back to Search
       </button>
-        
+
       <div className="max-w-3xl w-full bg-white/10 backdrop-blur-lg border border-white/20 rounded-3xl shadow-2xl p-10 relative overflow-hidden">
-      
         <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 to-pink-500/30 blur-3xl -z-10"></div>
 
         <div className="flex items-center justify-center gap-3 mb-8">

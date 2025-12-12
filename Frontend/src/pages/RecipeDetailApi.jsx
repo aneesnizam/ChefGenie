@@ -1,19 +1,33 @@
 import { useEffect, useState, useRef } from "react";
-import { Heart, Play, ShoppingCart, Sparkles, X } from "lucide-react";
-import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import {
+  Heart,
+  Play,
+  ShoppingCart,
+  Sparkles,
+  X,
+  Share2,
+  Trash2,
+} from "lucide-react";
+import {
+  useLocation,
+  useParams,
+  useSearchParams,
+  useNavigate,
+} from "react-router-dom";
 import GroceryListPanel from "../components/GroceryListPanel";
 import axiosInstance from "../services/axios";
 
 // --- Utility Function ---
-
+ 
 const formatRecipeData = (meal) => {
   if (!meal) return null;
 
   // Ingredients from DB (already an array)
-  const ingredients = meal.ingredients?.map((item, idx) => ({
-    id: idx + 1,
-    item,
-  })) || [];
+  const ingredients =
+    meal.ingredients?.map((item, idx) => ({
+      id: idx + 1,
+      item,
+    })) || [];
 
   // Instructions → split by line for steps
   const steps = (meal.instructions || "")
@@ -30,9 +44,15 @@ const formatRecipeData = (meal) => {
     mealid: meal.mealid || meal.id, // Use mealid if available, fallback to id
     title: meal.title,
     image: meal.image,
-    description: `A delicious ${meal.area || ""} ${Array.isArray(meal.category) ? meal.category.join(", ") : meal.category || ""} dish.`,
+    description: `A delicious ${meal.area || ""} ${
+      Array.isArray(meal.category)
+        ? meal.category.join(", ")
+        : meal.category || ""
+    } dish.`,
     cuisine: meal.area || "Unknown",
-    dietType: Array.isArray(meal.category) ? meal.category.join(", ") : meal.category || "General",
+    dietType: Array.isArray(meal.category)
+      ? meal.category.join(", ")
+      : meal.category || "General",
     difficulty: "N/A",
     ingredients,
     steps,
@@ -54,9 +74,7 @@ const formatSpoonacularRecipe = (data) => {
       id: step.number,
       instruction: step.step,
     })) ||
-    (data.instructions
-      ? [{ id: 1, instruction: data.instructions }]
-      : []);
+    (data.instructions ? [{ id: 1, instruction: data.instructions }] : []);
 
   return {
     id: data.id,
@@ -72,7 +90,6 @@ const formatSpoonacularRecipe = (data) => {
   };
 };
 
-
 // --- Main Component ---
 
 export default function RecipeDetailApi() {
@@ -83,20 +100,26 @@ export default function RecipeDetailApi() {
   const [error, setError] = useState(null);
   const [params] = useSearchParams();
   // console.log(Boolean(params.get("m")))
-  const [isSpoonacular, setIsSpoonacular] = useState(Boolean(params.get("m")))
+  const [isSpoonacular, setIsSpoonacular] = useState(Boolean(params.get("m")));
 
   // Recipe data
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   // Try to get recipe from location state first (passed from previous page)
   const [recipe, setRecipe] = useState(
     location.state?.recipe ? formatRecipeData(location.state.recipe) : null
-
   );
   // Flag to show "AI Generated" badge
-  const isAIRecipe = Boolean(location.state?.meals);
+  const isAIRecipe = Boolean(
+    location.state?.meals || location.state?.isAIGenerated
+  );
+  // Recipe metadata from backend
+  const [recipeMeta, setRecipeMeta] = useState(null);
+  const [isMyRecipe, setIsMyRecipe] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // const isSpoonacular = Boolean(params);
-
 
   // UI interaction state
   const [isFavorite, setIsFavorite] = useState(false);
@@ -112,7 +135,6 @@ export default function RecipeDetailApi() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState(null);
 
-
   // --- Refs ---
 
   // Ref to auto-scroll the chat window
@@ -124,81 +146,84 @@ export default function RecipeDetailApi() {
    * Effect to fetch recipe details if not passed in location state.
    */
 
-
-useEffect(() => {
-  if (recipe) {
-    setLoading(false);
-    return;
-  }
-
-  if (!id) {
-    setError("No recipe ID provided.");
-    setLoading(false);
-    return;
-  }
-
-
-  const fetchRecipe = async () => {
-    setLoading(true);
-    try {
-      if (isSpoonacular) {
-        // Fetch from Spoonacular
-        console.log("check", isSpoonacular)
-        console.log("spoon")
-        const res = await axiosInstance.get(`/api/spoonculardetail/${id}/`);
-        if (res.data && res.data.title) {
-          setRecipe(formatSpoonacularRecipe(res.data));
-          console.log(formatSpoonacularRecipe(res.data))
-        } else {
-          setError("Recipe not found in Spoonacular.");
-        }
-      } else {
-        // Fetch from MealDB
-        console.log("meal")
-        const res = await axiosInstance.get(`/api/recipedetail/${id}/`);
-        if (res.data && res.data.title) {
-          setRecipe(formatRecipeData(res.data));
-          console.log(formatRecipeData(res.data));
-        } else {
-          setError("Recipe not found in database.");
-        }
-
-      }
-    } catch (err) {
-      console.error("Error fetching recipe:", err);
-      setError("Failed to load recipe. Please try again later.");
-    } finally {
+  useEffect(() => {
+    if (recipe) {
       setLoading(false);
+      return;
     }
-  };
 
-  fetchRecipe();
-}, [id, recipe, isSpoonacular]);
+    if (!id) {
+      setError("No recipe ID provided.");
+      setLoading(false);
+      return;
+    }
 
-/**
- * Effect to check if recipe is favorited when recipe data is available
- * Only for non-Spoonacular recipes (they don't have mealid in our DB)
- */
-useEffect(() => {
-  if (!recipe || isSpoonacular) return;
+    const fetchRecipe = async () => {
+      setLoading(true);
+      try {
+        if (isSpoonacular) {
+          // Fetch from Spoonacular
+          console.log("check", isSpoonacular);
+          console.log("spoon");
+          const res = await axiosInstance.get(`/api/spoonculardetail/${id}/`);
+          if (res.data && res.data.title) {
+            setRecipe(formatSpoonacularRecipe(res.data));
+            console.log(formatSpoonacularRecipe(res.data));
+          } else {
+            setError("Recipe not found in Spoonacular.");
+          }
+        } else {
+          // Fetch from MealDB
+          console.log("meal");
+          const res = await axiosInstance.get(`/api/recipedetail/${id}/`);
+          if (res.data && res.data.title) {
+            const formattedRecipe = formatRecipeData(res.data);
+            setRecipe(formattedRecipe);
+            // Store recipe metadata to check if it's user's AI recipe
+            setRecipeMeta(res.data);
+            // Check if this is user's AI-generated recipe
+            if (res.data.is_user_added && res.data.user) {
+              setIsMyRecipe(true);
+            }
+            console.log(formatRecipeData(res.data));
+          } else {
+            setError("Recipe not found in database.");
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching recipe:", err);
+        setError("Failed to load recipe. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Use mealid if available, otherwise use id (which should be mealid from URL param)
-  const mealid = recipe.mealid || recipe.id || id;
+    fetchRecipe();
+  }, [id, recipe, isSpoonacular]);
 
-  // Check if recipe is in favorites
-  axiosInstance
-    .get("/api/favorites/")
-    .then((res) => {
-      const favoriteMealIds = new Set(
-        res.data.favorites.map((fav) => fav.meal.mealid)
-      );
-      setIsFavorite(favoriteMealIds.has(mealid));
-    })
-    .catch((err) => {
-      console.error("Failed to check favorite status:", err);
-    });
-}, [recipe, isSpoonacular, id]);
+  /**
+   * Effect to check if recipe is favorited when recipe data is available
+   * Only for non-Spoonacular recipes (they don't have mealid in our DB)
+   */
+  useEffect(() => {
+    if (!recipe || isSpoonacular) return;
 
+    // Use mealid if available, otherwise use id (which should be mealid from URL param)
+    const mealid = recipe.mealid || recipe.id || id;
+
+    // Check if recipe is in favorites
+    axiosInstance
+      .get("/api/favorites/")
+      .then((res) => {
+        const favoriteMealIds = new Set(
+          res.data.favorites.map((fav) => fav.meal.mealid)
+        );
+        setIsFavorite(favoriteMealIds.has(mealid));
+      })
+      .catch((err) => {
+        console.error("Failed to check favorite status:", err);
+      });
+  }, [recipe, isSpoonacular, id]);
 
   /**
    * Effect to scroll the chat window to the bottom
@@ -359,7 +384,7 @@ useEffect(() => {
       .then((res) => {
         setAiIngredients(res.data.ingredients_sorted);
         setIsIngredientsList(true);
-         console.log(res.data.ingredients_sorted)
+        console.log(res.data.ingredients_sorted);
       })
       .catch(() => setError("Failed to load recipe. Please try again later."))
       .finally(() => setGeneratelistloading(false));
@@ -370,16 +395,16 @@ useEffect(() => {
    */
   const toggleFavorite = () => {
     if (!recipe) return;
-    
+
     // For Spoonacular recipes, we can't favorite them (they don't have mealid in our DB)
     if (isSpoonacular) {
       console.warn("Cannot favorite Spoonacular recipes");
       return;
     }
-    
+
     // Use mealid if available, otherwise use id (which should be mealid from URL param)
     const mealid = recipe.mealid || recipe.id || id;
-    
+
     // Optimistically update UI
     setIsFavorite((prev) => !prev);
 
@@ -439,13 +464,13 @@ useEffect(() => {
         {/* --- Image Header --- */}
         <div className="relative h-96 overflow-hidden">
           <img
-            src={recipe.image}
+            src={recipe.image || "https://i.pinimg.com/1200x/91/8a/7c/918a7c33fb1333c3daeed806202ed0c1.jpg"}
             alt={recipe.title}
             className="w-full h-full object-cover"
             onError={(e) => {
               // Fallback image in case the src fails
               e.currentTarget.src =
-                "https://static.vecteezy.com/system/resources/previews/013/224/085/non_2x/recipe-book-on-wooden-table-background-banner-free-vector.jpg";
+                "https://i.pinimg.com/1200x/91/8a/7c/918a7c33fb1333c3daeed806202ed0c1.jpg";
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -468,22 +493,29 @@ useEffect(() => {
                   <h1 className="text-xl font-bold mb-2">{recipe.title}</h1>
                   <p className="text-muted-foreground">{recipe.description}</p>
                 </div>
-                {/* Favorite Button - Only show for non-Spoonacular recipes */}
-                {!isSpoonacular && (
-                  <button
-                    className={`rounded-full w-12 h-12 flex items-center justify-center border ${
-                      isFavorite
-                        ? "bg-red-500 text-white"
-                        : "border-gray-300 text-gray-500"
-                    }`}
-                    onClick={toggleFavorite}
-                    aria-label="Toggle favorite"
-                  >
-                    <Heart
-                      className={`w-6 h-6 ${isFavorite ? "fill-current" : ""}`}
-                    />
-                  </button>
-                )}
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Share and Delete buttons for user's AI recipes */}
+               
+                  {/* Favorite Button - Only show for non-Spoonacular recipes */}
+                  {!isSpoonacular && (
+                    <button
+                      className={`rounded-full w-12 h-12 flex items-center justify-center border ${
+                        isFavorite
+                          ? "bg-red-500 text-white"
+                          : "border-gray-300 text-gray-500"
+                      }`}
+                      onClick={toggleFavorite}
+                      aria-label="Toggle favorite"
+                    >
+                      <Heart
+                        className={`w-6 h-6 ${
+                          isFavorite ? "fill-current" : ""
+                        }`}
+                      />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="my-4 border-t"></div>
             </div>
@@ -517,6 +549,7 @@ useEffect(() => {
                 <Play className="w-5 h-5" /> Cook Mode (No Video)
               </button>
             )}
+ 
 
             <button
               onClick={() => setIsChatOpen(true)} // Opens AI chat
@@ -533,7 +566,7 @@ useEffect(() => {
               <div className="bg-card rounded-2xl p-6 border sticky top-6">
                 <h2 className="font-semibold mb-4">Ingredients</h2>
                 <p className="text-sm text-gray-500 mb-3">
-                  Check items you need to buy.
+                  Check items you need to buy. 
                 </p>
 
                 <div className="space-y-3">

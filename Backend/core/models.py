@@ -1,5 +1,6 @@
 from django.db import models
-from django.contrib.auth.models import (BaseUserManager, AbstractBaseUser, PermissionsMixin)
+from django.contrib.auth.models import (
+    BaseUserManager, AbstractBaseUser, PermissionsMixin)
 from django.conf import settings
 
 
@@ -62,7 +63,8 @@ class Profile(models.Model):
 
 
 class Meal(models.Model):
-    mealid = models.CharField(max_length=50, unique=True)
+    # Removed unique constraint to allow user-specific IDs
+    mealid = models.CharField(max_length=50)
     title = models.CharField(max_length=200)
     category = models.JSONField()  # <-- store one or many categories
     area = models.CharField(max_length=200, blank=True, null=True)
@@ -72,7 +74,25 @@ class Meal(models.Model):
     youtube = models.URLField(blank=True, null=True)
     source = models.URLField(blank=True, null=True)
     is_user_added = models.BooleanField(default=False)
-    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_meals',
+        null=True,
+        blank=True
+    )  # User who created the recipe (for AI-generated recipes)
+    # Whether recipe is shared publicly
+    is_public = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # Unique constraint on mealid + user for user-specific recipes
+        # For recipes without a user (system recipes), mealid should be unique
+        unique_together = [['mealid', 'user']]
+        indexes = [
+            models.Index(fields=['user', 'is_user_added', '-created_at']),
+            models.Index(fields=['is_public', '-created_at']),
+        ]
 
     def __str__(self):
         return self.title
@@ -112,11 +132,13 @@ class GroceryList(models.Model):
 
     def __str__(self):
         return f"{self.ingredient_name} ({self.quantity} {self.unit})"
-    
-    
+
+
 class Favorite(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_entries')
-    meal = models.ForeignKey('Meal', on_delete=models.CASCADE, related_name='favorite_entries')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_entries')
+    meal = models.ForeignKey(
+        'Meal', on_delete=models.CASCADE, related_name='favorite_entries')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -129,9 +151,12 @@ class Favorite(models.Model):
 
 class RecipeView(models.Model):
     """Track when users view recipes"""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recipe_views')
-    meal = models.ForeignKey('Meal', on_delete=models.CASCADE, related_name='views')
-    mealid = models.CharField(max_length=50)  # Store mealid string for quick lookup
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recipe_views')
+    meal = models.ForeignKey(
+        'Meal', on_delete=models.CASCADE, related_name='views')
+    # Store mealid string for quick lookup
+    mealid = models.CharField(max_length=50)
     viewed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -146,3 +146,17 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 GEMINI_API_KEY = config("GEMINI_API_KEY")
 
 SPOONACULAR_API_KEY = config("SPOONACULAR_API_KEY")
+
+# JWT Settings
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # Access token valid for 1 hour
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # Refresh token valid for 7 days
+    'ROTATE_REFRESH_TOKENS': True,  # Get new refresh token on each refresh
+    'BLACKLIST_AFTER_ROTATION': False,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}

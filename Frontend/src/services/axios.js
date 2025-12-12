@@ -1,4 +1,5 @@
 import axios from "axios";
+import { jwtDecode } from "jwt-decode";
 
 const baseURL = "http://127.0.0.1:8000";
 
@@ -21,6 +22,21 @@ const clearAuthState = () => {
   window.location.href = "/login";
 };
 
+// Check if token is expired or will expire soon (within 5 minutes)
+const isTokenExpiredOrExpiringSoon = (token) => {
+  if (!token) return true;
+  try {
+    const decoded = jwtDecode(token);
+    const currentTime = Date.now() / 1000;
+    const expirationTime = decoded.exp;
+    // Refresh if token expires within 5 minutes (300 seconds)
+    return expirationTime - currentTime < 300;
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return true;
+  }
+};
+
 let refreshPromise = null;
 const requestTokenRefresh = (refreshToken) => {
   if (!refreshPromise) {
@@ -30,6 +46,10 @@ const requestTokenRefresh = (refreshToken) => {
         console.log("✅ Token refreshed");
         setStoredTokens(response.data);
         return response.data;
+      })
+      .catch((error) => {
+        console.error("Token refresh failed:", error);
+        throw error;
       })
       .finally(() => {
         refreshPromise = null;
@@ -42,11 +62,26 @@ const axiosInstance = axios.create({
   baseURL,
 });
 
-axiosInstance.interceptors.request.use((req) => {
+axiosInstance.interceptors.request.use(async (req) => {
   const tokens = getStoredTokens();
+
   if (tokens?.access) {
+    // Proactively refresh token if it's expired or expiring soon
+    if (isTokenExpiredOrExpiringSoon(tokens.access) && tokens.refresh) {
+      try {
+        const newTokens = await requestTokenRefresh(tokens.refresh);
+        req.headers.Authorization = `Bearer ${newTokens.access}`;
+        return req;
+      } catch (error) {
+        // If refresh fails, clear auth and let the request fail
+        clearAuthState();
+        return Promise.reject(error);
+      }
+    }
+
     req.headers.Authorization = `Bearer ${tokens.access}`;
   }
+
   return req;
 });
 

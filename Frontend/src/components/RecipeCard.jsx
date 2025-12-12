@@ -21,12 +21,18 @@ export default function RecipeCard({
     >
       {/* Image */}
       <div className="relative h-48 overflow-hidden bg-gray-300">
-    <img
-  src={imgError ? 'https://static.vecteezy.com/system/resources/previews/003/170/825/original/isolated-food-plate-fork-and-spoon-design-free-vector.jpg' : strMealThumb}
-  alt={strMeal}
-  className={`w-full h-full object-cover transition-transform duration-300 ${loading ? ' opacity-0' : 'group-hover:scale-110'}`}
-  onError={() => setImgError(true)}
-/>
+        {strMealThumb ? (
+          <img
+            src={imgError ? 'https://static.vecteezy.com/system/resources/previews/003/170/825/original/isolated-food-plate-fork-and-spoon-design-free-vector.jpg' : strMealThumb}
+            alt={strMeal || "Recipe image"}
+            className={`w-full h-full object-cover transition-transform duration-300 ${loading ? ' opacity-0' : 'group-hover:scale-110'}`}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+            <span className="text-gray-400 text-sm">No image</span>
+          </div>
+        )}
 
 
         {/* Favorite Button */}
