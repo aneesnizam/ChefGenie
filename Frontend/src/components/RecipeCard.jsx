@@ -22,7 +22,7 @@ export default function RecipeCard({
       {/* Image */}
       <div className="relative h-48 overflow-hidden bg-gray-300">
     <img
-  src={imgError ? 'https://via.placeholder.com/400x300?text=No+Image' : strMealThumb}
+  src={imgError ? 'https://static.vecteezy.com/system/resources/previews/003/170/825/original/isolated-food-plate-fork-and-spoon-design-free-vector.jpg' : strMealThumb}
   alt={strMeal}
   className={`w-full h-full object-cover transition-transform duration-300 ${loading ? ' opacity-0' : 'group-hover:scale-110'}`}
   onError={() => setImgError(true)}
@@ -48,14 +48,14 @@ export default function RecipeCard({
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
-          {strArea && (
+          {strArea && strArea!="Unknown" && (
             <span className="bg-white/90 text-black backdrop-blur-sm px-2 py-1 rounded-full text-xs font-semibold">
               {strArea}
             </span>
           )}
           {strCategory && (
             <span className="bg-secondary text-secondary-foreground backdrop-blur-sm px-2 py-1 rounded-full text-xs font-semibold">
-              {strCategory}
+              {strCategory.split(",")[0]}
             </span>
           )}
         </div>

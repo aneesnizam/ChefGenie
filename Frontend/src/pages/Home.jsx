@@ -4,43 +4,87 @@ import RecipeCard from "../components/RecipeCard";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../services/axios";
 
-
 export default function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
-  const [featuredRecipes,setFeaturedRecipes] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [featuredRecipes, setFeaturedRecipes] = useState([]);
+  const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    setLoading(true);
+    axiosInstance
+      .get("/api/homerecipes/")
+      .then((res) => {
+        setFeaturedRecipes(res.data);
+        console.log(res.data);
+      })
+      .catch((err) => {
+        console.error(err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
-
-  useEffect(()=>{
-    setLoading(true)
-    axiosInstance.get('/api/homerecipes/')
-    .then(res=>{
-      setFeaturedRecipes(res.data)
-      console.log(res.data)
-    })
-    .catch(err=>{
-      console.error(err)
-    }).finally(()=>{
-      setLoading(false)
-    })
-  },[])
+    // Fetch user's favorites
+    axiosInstance
+      .get("/api/favorites/")
+      .then((res) => {
+        // Extract mealid from each favorite's meal object
+        const favoriteMealIds = new Set(
+          res.data.favorites.map((fav) => fav.meal.mealid)
+        );
+        setFavorites(favoriteMealIds);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch favorites:", err);
+      });
+  }, []);
 
   const toggleFavorite = (id) => {
+    // Optimistically update UI
     setFavorites((prev) => {
       const newFavorites = new Set(prev);
-      if (newFavorites.has(id)) newFavorites.delete(id);
-      else newFavorites.add(id);
+      if (newFavorites.has(id)) {
+        newFavorites.delete(id);
+      } else {
+        newFavorites.add(id);
+      }
       return newFavorites;
     });
+
+    // Make API call to toggle favorite
+    axiosInstance
+      .post("/api/favorites/toggle/", { mealid: id })
+      .then((res) => {
+        // Update state based on API response
+        setFavorites((prev) => {
+          const newFavorites = new Set(prev);
+          if (res.data.is_favorited) {
+            newFavorites.add(id);
+          } else {
+            newFavorites.delete(id);
+          }
+          return newFavorites;
+        });
+      })
+      .catch((err) => {
+        // Revert optimistic update on error
+        setFavorites((prev) => {
+          const newFavorites = new Set(prev);
+          if (newFavorites.has(id)) {
+            newFavorites.delete(id);
+          } else {
+            newFavorites.add(id);
+          }
+          return newFavorites;
+        });
+        console.error("Failed to toggle favorite:", err);
+      });
   };
 
   return (
-<div
-  className="min-h-screen bg-[linear-gradient(180deg,#ffecd1_0%,#fdf8f3_50%,#f4ede3_100%)] dark:bg-[linear-gradient(180deg,#1a1410_100%)]"
->
+    <div className="min-h-screen bg-[linear-gradient(180deg,#ffecd1_0%,#fdf8f3_50%,#f4ede3_100%)] dark:bg-[linear-gradient(180deg,#1a1410_100%)]">
       {/* Hero Section */}
       <section className="relative px-4 py-16 md:py-24">
         <div className="max-w-4xl mx-auto text-center">
@@ -60,7 +104,12 @@ export default function Home() {
           {/* Ingredient Search */}
           <div className="relative max-w-2xl  mx-auto mb-8">
             <div className="relative bg-card rounded-2xl shadow-2xl border-2 border-border p-2 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                }}
+                className="flex items-center gap-3"
+              >
                 <Search className="w-6 h-6 text-muted-foreground ml-3" />
                 <input
                   type="text"
@@ -70,12 +119,12 @@ export default function Home() {
                   className="flex-1 border-0 bg-transparent text-lg focus:outline-none focus:ring-0"
                 />
                 <button
-                  onClick={() => navigate("/app/recipes")}
+                  onClick={() => navigate(`/app/recipes?s=${searchQuery}`)}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold shadow-md hover:opacity-90 transition"
                 >
                   Find Recipes
                 </button>
-              </div>
+              </form>
             </div>
           </div>
 
@@ -144,57 +193,63 @@ export default function Home() {
       <section className="px-8 py-16">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold">Featured Recipes</h2>
-            <button
+            <h2 className="text-2xl font-bold">Newly Added Recipes</h2>
+            {/* <button
               onClick={() => navigate("/app/recipes")}
               className="text-primary font-semibold hover:underline"
             >
               View All →
-            </button>                                                                                                                                                                                 
+            </button>                                                                                                                                                                                  */}
           </div>
 
-     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-  {loading ? Array(4).fill("").map((_, i)=>(
-    <RecipeCard
-      key={i}
-      idMeal={""}
-      strMeal={""}
-      strMealThumb={""}
-      strCategory={""} // safe fallback
-      strArea={""}         // safe fallback
-      isFavorite={""}
-      onToggleFavorite={""}
-      loading={true}
-    />
-  )) : featuredRecipes.map((recipe) => (
-    <RecipeCard
-      key={recipe.idMeal}
-      idMeal={recipe.idMeal}
-      strMeal={recipe.strMeal}
-      strMealThumb={recipe.strMealThumb}
-      strCategory={recipe.strCategory ?? null} // safe fallback
-      strArea={recipe.strArea ?? null}         // safe fallback
-      isFavorite={favorites.has(recipe.idMeal)}
-      onToggleFavorite={toggleFavorite}
-      onClick={(id) => navigate(`/app/recipe/${id}`)}
-    />
-  ))}
-</div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {loading
+              ? Array(4)
+                  .fill("")
+                  .map((_, i) => (
+                    <RecipeCard
+                      key={i}
+                      idMeal={""}
+                      strMeal={""}
+                      strMealThumb={""}
+                      strCategory={""} // safe fallback
+                      strArea={""} // safe fallback
+                      isFavorite={""}
+                      onToggleFavorite={""}
+                      loading={true}
+                    />
+                  ))
+              : featuredRecipes.map((recipe) => (
+                  <RecipeCard
+                    key={recipe.id}
+                    idMeal={recipe.mealid}
+                    strMeal={recipe.title}
+                    strMealThumb={recipe.image}
+                    strCategory={
+                      Array.isArray(recipe.category)
+                        ? recipe.category.join(", ")
+                        : recipe.category ?? "Unknown"
+                    }
+                    strArea={recipe.area ?? "Unknown"}
+                    isFavorite={favorites.has(recipe.mealid)}
+                    onToggleFavorite={toggleFavorite}
+                    onClick={(id) => navigate(`/app/recipeapi/${id}`)}
+                  />
+                ))}
+          </div>
         </div>
       </section>
     </div>
   );
 }
 
-
-    // {
-    //   id: "1",
-    //   title: "Creamy Garlic Parmesan Pasta",
-    //   image:
-    //     "https://images.unsplash.com/photo-1619568759244-8372de67304a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    //   cookTime: "25 min",
-    //   servings: 4,
-    //   cuisine: "Italian",
-    //   dietType: "Vegetarian",
-    // }
+// {
+//   id: "1",
+//   title: "Creamy Garlic Parmesan Pasta",
+//   image:
+//     "https://images.unsplash.com/photo-1619568759244-8372de67304a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+//   cookTime: "25 min",
+//   servings: 4,
+//   cuisine: "Italian",
+//   dietType: "Vegetarian",
+// }

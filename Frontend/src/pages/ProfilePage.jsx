@@ -1,105 +1,295 @@
-import { useState } from "react";
-import {
-  User,
-  Settings,
-  Heart,
-  ShoppingCart,
-  Clock,
-  Mail,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Settings, Heart, ShoppingCart, Clock, Mail } from "lucide-react";
 import RecipeCard from "../components/RecipeCard"; // assuming RecipeCard is already JSX compatible
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../services/axios";
 
 export default function ProfilePage() {
-  const [favorites, setFavorites] = useState(new Set(["1", "2", "4"]));
+  const [favorites, setFavorites] = useState(new Set());
+  const [favoriteRecipes, setFavoriteRecipes] = useState([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("favorites");
-  
-  const navigate = useNavigate()
+  const [groceryList, setGroceryList] = useState([]);
+  const [groceryLoading, setGroceryLoading] = useState(false);
+  const [groceryError, setGroceryError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+  const [removingIngredientId, setRemovingIngredientId] = useState(null);
 
-  const favoriteRecipes = [
-    {
-      id: "1",
-      title: "Creamy Garlic Parmesan Pasta",
-      image:
-        "https://images.unsplash.com/photo-1619568759244-8372de67304a?w=1080",
-      cookTime: "25 min",
-      servings: 4,
-      cuisine: "Italian",
-      dietType: "Vegetarian",
-    },
-    {
-      id: "2",
-      title: "Herb-Crusted Grilled Salmon",
-      image:
-        "https://images.unsplash.com/photo-1708388464725-5c62c6e4574d?w=1080",
-      cookTime: "20 min",
-      servings: 2,
-      cuisine: "American",
-      dietType: "Keto",
-    },
-    {
-      id: "4",
-      title: "Asian Veggie Stir-Fry",
-      image:
-        "https://images.unsplash.com/photo-1758979690131-11e2aa0b142b?w=1080",
-      cookTime: "18 min",
-      servings: 3,
-      cuisine: "Asian",
-      dietType: "Vegan",
-    },
-  ];
+  // History state
+  const [recentViews, setRecentViews] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  const pastRecipes = [
-    {
-      id: "5",
-      title: "Decadent Chocolate Lava Cake",
-      image:
-        "https://images.unsplash.com/photo-1541783245831-57d6fb0926d3?w=1080",
-      cookTime: "30 min",
-      servings: 2,
-      cuisine: "French",
-      dietType: "Vegetarian",
-      cookedOn: "Oct 7, 2025",
-    },
-    {
-      id: "8",
-      title: "Authentic Mexican Tacos",
-      image:
-        "https://images.unsplash.com/photo-1757774551171-91143e145b0a?w=1080",
-      cookTime: "20 min",
-      servings: 3,
-      cuisine: "Mexican",
-      cookedOn: "Oct 5, 2025",
-    },
-  ];
+  // User profile state
+  const [userProfile, setUserProfile] = useState({
+    name: "",
+    email: "",
+    favorites_count: 0,
+    days_active: 0,
+  });
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState("");
+  const [updatingName, setUpdatingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
-  const groceryList = [
-    {
-      category: "Vegetables",
-      items: ["Tomatoes (4 pcs)", "Garlic (2 bulbs)", "Onions (3 pcs)"],
-    },
-    {
-      category: "Proteins",
-      items: ["Chicken breast (2 lbs)", "Salmon fillet (1 lb)"],
-    },
-    {
-      category: "Dairy",
-      items: ["Parmesan cheese (8 oz)", "Heavy cream (2 cups)"],
-    },
-    {
-      category: "Pantry",
-      items: ["Pasta (2 lbs)", "Olive oil (1 bottle)", "Rice (1 bag)"],
-    },
-  ];
+  const navigate = useNavigate();
 
   const toggleFavorite = (id) => {
+    // Optimistically update UI
     setFavorites((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
       return newSet;
     });
+
+    // Make API call to toggle favorite
+    axiosInstance
+      .post("/api/favorites/toggle/", { mealid: id })
+      .then((res) => {
+        // Update state based on API response
+        setFavorites((prev) => {
+          const newSet = new Set(prev);
+          if (res.data.is_favorited) {
+            newSet.add(id);
+          } else {
+            newSet.delete(id);
+          }
+          return newSet;
+        });
+        // If unfavorited, remove from favoriteRecipes list
+        if (!res.data.is_favorited) {
+          setFavoriteRecipes((prev) =>
+            prev.filter((recipe) => recipe.mealid !== id)
+          );
+          // Update favorites count
+          setUserProfile((prev) => ({
+            ...prev,
+            favorites_count: Math.max(0, prev.favorites_count - 1),
+          }));
+        } else {
+          // Update favorites count when favorited
+          setUserProfile((prev) => ({
+            ...prev,
+            favorites_count: prev.favorites_count + 1,
+          }));
+        }
+      })
+      .catch((err) => {
+        // Revert optimistic update on error
+        setFavorites((prev) => {
+          const newSet = new Set(prev);
+          if (newSet.has(id)) {
+            newSet.delete(id);
+          } else {
+            newSet.add(id);
+          }
+          return newSet;
+        });
+        console.error("Failed to toggle favorite:", err);
+      });
   };
+
+  const normalizeGroceryResponse = (data) => {
+    if (Array.isArray(data)) {
+      const looksLikeIngredients = data.every(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          ("ingredient_name" in item || "ingredient" in item)
+      );
+
+      if (looksLikeIngredients) {
+        return [
+          {
+            id: "current",
+            recipe_name: "Current List",
+            ingredients: data,
+          },
+        ];
+      }
+
+      return data;
+    }
+
+    if (Array.isArray(data?.results)) {
+      return normalizeGroceryResponse(data.results);
+    }
+
+    if (Array.isArray(data?.ingredients)) {
+      return [
+        {
+          id: data.id ?? "current",
+          recipe_name: data.recipe_name ?? "Current List",
+          ingredients: data.ingredients,
+        },
+      ];
+    }
+
+    return [];
+  };
+
+  const fetchGroceryLists = async () => {
+    setGroceryLoading(true);
+    setGroceryError("");
+    try {
+      const { data } = await axiosInstance.get("/api/grocery-list-create/");
+      console.log(data);
+      setGroceryList(normalizeGroceryResponse(data));
+    } catch (err) {
+      console.error("Failed to load grocery lists:", err);
+      setGroceryError("Could not load your grocery lists. Please try again.");
+    } finally {
+      setGroceryLoading(false);
+    }
+  };
+
+  const handleRemoveIngredient = async (ingredient, parentListId) => {
+    if (!ingredient?.id) {
+      alert("Unable to remove this ingredient because it has no ID yet.");
+      return;
+    }
+    setRemovingIngredientId(ingredient.id);
+    try {
+      await axiosInstance.delete(`/api/grocery-list-create/${ingredient.id}/`);
+      setGroceryList((prev) =>
+        prev
+          .map((list) => {
+            if ((list.id ?? "current") !== parentListId) return list;
+            const nextIngredients = (list.ingredients || []).filter(
+              (item) => item.id !== ingredient.id
+            );
+            return { ...list, ingredients: nextIngredients };
+          })
+          .filter((list) =>
+            list.ingredients && list.ingredients.length > 0
+              ? true
+              : (list.id ?? "current") !== parentListId
+          )
+      );
+    } catch (err) {
+      console.error("Failed to remove ingredient:", err);
+      alert("Unable to remove this ingredient. Please try again.");
+    } finally {
+      setRemovingIngredientId(null);
+    }
+  };
+
+  // Fetch user profile on mount
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "grocery") {
+      fetchGroceryLists();
+    } else if (activeTab === "history") {
+      fetchRecentViews();
+    }
+  }, [activeTab]);
+
+  const fetchRecentViews = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await axiosInstance.get("/api/recent-views/");
+      // Transform views to recipe format
+      const recipes = data.views.map((view) => ({
+        mealid: view.meal.mealid,
+        id: view.meal.mealid,
+        title: view.meal.title,
+        image: view.meal.image,
+        category: Array.isArray(view.meal.category)
+          ? view.meal.category.join(", ")
+          : view.meal.category || "Unknown",
+        area: view.meal.area || "Unknown",
+        viewedAt: view.viewed_at,
+      }));
+      setRecentViews(recipes);
+    } catch (err) {
+      console.error("Failed to fetch recent views:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    setProfileLoading(true);
+    setProfileError("");
+    try {
+      const { data } = await axiosInstance.get("/auth/profile/");
+      setUserProfile({
+        name: data.name || "",
+        email: data.email || "",
+        favorites_count: data.favorites_count || 0,
+        days_active: data.days_active || 0,
+      });
+      setNameInput(data.name || "");
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+      setProfileError("Could not load your profile. Please try again.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const updateUserName = async () => {
+    if (!nameInput.trim() || nameInput.trim() === userProfile.name) {
+      return;
+    }
+
+    setUpdatingName(true);
+    try {
+      const { data } = await axiosInstance.patch("/auth/profile/", {
+        name: nameInput.trim(),
+      });
+      setUserProfile((prev) => ({
+        ...prev,
+        name: data.name || nameInput.trim(),
+      }));
+    } catch (err) {
+      console.error("Failed to update name:", err);
+      alert("Failed to update name. Please try again.");
+      setNameInput(userProfile.name); // Revert on error
+    } finally {
+      setUpdatingName(false);
+    }
+  };
+
+  // Fetch favorites on mount and when favorites tab is active
+  useEffect(() => {
+    if (activeTab === "favorites") {
+      setFavoritesLoading(true);
+      axiosInstance
+        .get("/api/favorites/")
+        .then((res) => {
+          // Extract mealid from each favorite's meal object
+          const favoriteMealIds = new Set(
+            res.data.favorites.map((fav) => fav.meal.mealid)
+          );
+          setFavorites(favoriteMealIds);
+          // Set favorite recipes from the API response
+          const recipes = res.data.favorites.map((fav) => ({
+            mealid: fav.meal.mealid,
+            id: fav.meal.mealid,
+            title: fav.meal.title,
+            image: fav.meal.image,
+            category: Array.isArray(fav.meal.category)
+              ? fav.meal.category.join(", ")
+              : fav.meal.category || "Unknown",
+            area: fav.meal.area || "Unknown",
+          }));
+          setFavoriteRecipes(recipes);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch favorites:", err);
+        })
+        .finally(() => {
+          setFavoritesLoading(false);
+        });
+    }
+  }, [activeTab]);
 
   return (
     <div className="min-h-screen px-4 py-8">
@@ -114,44 +304,44 @@ export default function ProfilePage() {
 
             {/* Profile Info */}
             <div className="flex-1 text-center md:text-left">
-              <h1 className="mb-2 text-xl font-bold">Sarah Johnson</h1>
-              <p className="text-gray-500 mb-4">Home Chef · Food Enthusiast</p>
-
-              {/* Dietary Preferences */}
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
-                <span className="bg-bright text-white px-3 py-1 rounded-full text-sm">
-                  Vegetarian Friendly
-                </span>
-                <span className="border px-3 py-1 rounded-full text-sm">
-                  Dairy-Free Options
-                </span>
-                <span className="border px-3 py-1 rounded-full text-sm">
-                  Quick Meals
-                </span>
-              </div>
-
-              {/* Stats */}
-              <div className="flex gap-6  justify-center md:justify-start">
-                <div>
-                  <p className="text-2xl  font-bold">{favoriteRecipes.length}</p>
-                  <p className="text-sm text-gray-500">Favorites</p>
+              {profileLoading ? (
+                <div className="flex items-center justify-center md:justify-start gap-2">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm text-muted-foreground">
+                    Loading profile...
+                  </span>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{pastRecipes.length}</p>
-                  <p className="text-sm text-gray-500">Recipes Cooked</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">48</p>
-                  <p className="text-sm text-gray-500">Days Active</p>
-                </div>
-              </div>
-            </div>
+              ) : profileError ? (
+                <div className="text-sm text-red-500">{profileError}</div>
+              ) : (
+                <>
+                  <h1 className="mb-2 text-xl font-bold">
+                    {userProfile.name || "User"}
+                  </h1>
+                  {userProfile.email && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {userProfile.email}
+                    </p>
+                  )}
 
-            {/* Actions */}
-            <div className="flex md:flex-col gap-2">
-              <button className="flex items-center justify-center px-4 py-2 border rounded-xl hover:bg-muted">
-                <Settings className="w-4 h-4 mr-2" /> Settings
-              </button>
+                  {/* Stats */}
+                  <div className="flex gap-6 justify-center md:justify-start">
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {userProfile.favorites_count}
+                      </p>
+                      <p className="text-sm text-gray-500">Favorites</p>
+                    </div>
+
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {userProfile.days_active}
+                      </p>
+                      <p className="text-sm text-gray-500">Days Active</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -164,7 +354,9 @@ export default function ProfilePage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                  activeTab === tab ? "bg-bright dark: text-white" : "bg-gray-100 dark:bg-muted"
+                  activeTab === tab
+                    ? "bg-bright dark: text-white"
+                    : "bg-gray-100 dark:bg-muted"
                 }`}
               >
                 {tab === "favorites" && <Heart className="w-4 h-4" />}
@@ -178,85 +370,251 @@ export default function ProfilePage() {
 
           {/* Tab Content */}
           {activeTab === "favorites" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favoriteRecipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  {...recipe}
-                  isFavorite={favorites.has(recipe.id)}
-                  onToggleFavorite={toggleFavorite}
-                   onClick={() => navigate(`/app/recipe/${recipe.id}`)}
-                />
-              ))}
+            <div>
+              {favoritesLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-muted-foreground text-lg">
+                      Loading favorites...
+                    </p>
+                  </div>
+                </div>
+              ) : favoriteRecipes.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Heart className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-2xl font-semibold text-foreground mb-3">
+                    No favorites yet
+                  </h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Start favoriting recipes to see them here!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {favoriteRecipes.map((recipe) => (
+                    <RecipeCard
+                      key={recipe.mealid}
+                      idMeal={recipe.mealid}
+                      strMeal={recipe.title}
+                      strMealThumb={recipe.image}
+                      strCategory={recipe.category}
+                      strArea={recipe.area}
+                      isFavorite={favorites.has(recipe.mealid)}
+                      onToggleFavorite={toggleFavorite}
+                      onClick={(id) => navigate(`/app/recipeapi/${id}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "grocery" && (
             <div className="bg-card rounded-2xl border p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold">Current Grocery List</h2>
-                <button className="flex items-center gap-2 px-4 py-2 border rounded-xl hover:bg-muted">
-                  <ShoppingCart className="w-4 h-4" /> Export
+                <h2 className="text-lg font-bold">Current Grocery Lists</h2>
+                <button
+                  className="flex items-center gap-2 px-4 py-2 border rounded-xl hover:bg-muted"
+                  onClick={fetchGroceryLists}
+                  disabled={groceryLoading}
+                >
+                  <ShoppingCart className="w-4 h-4" /> Refresh
                 </button>
               </div>
-              <div className="space-y-4">
-                {groceryList.map((section, i) => (
-                  <div key={i}>
-                    <h3 className="font-semibold mb-2">{section.category}</h3>
-                    <div className="space-y-1">
-                      {section.items.map((item, idx) => (
-                        <label
-                          key={idx}
-                          className="flex items-center gap-2 p-2 rounded-lg bg-muted hover:bg-accent/80 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300"
-                          />
-                          {item}
-                        </label>
-                      ))}
+              {groceryLoading && (
+                <p className="text-sm text-gray-500">Loading your lists...</p>
+              )}
+              {groceryError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
+                  {groceryError}
+                  <button
+                    className="ml-3 underline"
+                    onClick={fetchGroceryLists}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {!groceryLoading && !groceryError && groceryList.length === 0 && (
+                <div className="text-center py-12">
+                  <ShoppingCart className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-sm text-gray-500">
+                    You don&apos;t have any grocery lists yet.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-6">
+                {groceryList.map((list) => {
+                  const listKey = list.id ?? "current";
+                  // Group ingredients by shop
+                  const ingredientsByShop = {};
+                  (list.ingredients || []).forEach((ingredient) => {
+                    const shop = ingredient.shop || "Others";
+                    if (!ingredientsByShop[shop]) {
+                      ingredientsByShop[shop] = [];
+                    }
+                    ingredientsByShop[shop].push(ingredient);
+                  });
+
+                  // Sort shops alphabetically
+                  const sortedShops = Object.keys(ingredientsByShop).sort();
+
+                  return (
+                    <div
+                      key={listKey}
+                      className="rounded-2xl border bg-gradient-to-br from-card to-muted/20 p-6 shadow-md"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-xl font-bold text-foreground">
+                              {list.recipe_name || "Current Grocery List"}
+                            </h3>
+                            <span className="rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">
+                              {list.ingredients?.length || 0} items
+                            </span>
+                          </div>
+                          {list.updated_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Updated{" "}
+                              {new Date(list.updated_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grouped by shop */}
+                      <div className="space-y-6">
+                        {sortedShops.map((shop) => {
+                          const shopIngredients = ingredientsByShop[shop];
+                          const shopColors = {
+                            Supermarket: "from-blue-500 to-blue-600",
+                            "Spices Store": "from-orange-500 to-orange-600",
+                            "Vegetable Market": "from-green-500 to-green-600",
+                            "Dairy Shop": "from-yellow-500 to-yellow-600",
+                            "Meat Shop": "from-red-500 to-red-600",
+                            Bakery: "from-amber-500 to-amber-600",
+                            Others: "from-gray-500 to-gray-600",
+                          };
+                          const shopColor =
+                            shopColors[shop] || shopColors["Others"];
+
+                          return (
+                            <div key={shop} className="space-y-3">
+                              {/* Shop Header */}
+                              <div
+                                className={`bg-gradient-to-r ${shopColor} text-white px-4 py-2 rounded-lg flex items-center justify-between`}
+                              >
+                                <h4 className="font-semibold text-sm uppercase tracking-wide">
+                                  {shop}
+                                </h4>
+                                <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs font-medium">
+                                  {shopIngredients.length}{" "}
+                                  {shopIngredients.length === 1
+                                    ? "item"
+                                    : "items"}
+                                </span>
+                              </div>
+
+                              {/* Ingredients in this shop */}
+                              <div className="grid gap-2 pl-2">
+                                {shopIngredients.map((ingredient, idx) => {
+                                  const ingredientKey =
+                                    ingredient.id ||
+                                    `${listKey}-${shop}-${idx}`;
+                                  const quantityLabel = `${
+                                    ingredient.quantity || "--"
+                                  } ${ingredient.unit || ""}`.trim();
+                                  return (
+                                    <div
+                                      key={ingredientKey}
+                                      className="flex flex-col gap-2 rounded-lg bg-white/60 dark:bg-background/80 px-4 py-3 text-sm border border-border/50 md:flex-row md:items-center md:justify-between hover:shadow-sm transition-shadow"
+                                    >
+                                      <div className="flex-1">
+                                        <p className="font-medium text-foreground">
+                                          {ingredient.ingredient_name ||
+                                            "Unnamed ingredient"}
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap gap-2">
+                                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                            {quantityLabel || "No quantity"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <button
+                                        className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-60 transition-colors"
+                                        onClick={() =>
+                                          handleRemoveIngredient(
+                                            ingredient,
+                                            listKey
+                                          )
+                                        }
+                                        disabled={
+                                          removingIngredientId === ingredient.id
+                                        }
+                                      >
+                                        {removingIngredientId === ingredient.id
+                                          ? "Removing..."
+                                          : "Remove"}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
           {activeTab === "history" && (
-            <div className="space-y-4">
-              {pastRecipes.map((recipe) => (
-                <div
-                  key={recipe.id}
-                  className="bg-card border rounded-2xl p-4 flex gap-4 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/app/recipe/${recipe.id}`)}
-                >
-                  <img
-                    src={recipe.image}
-                    alt={recipe.title}
-                    className="w-24 h-24 rounded-lg object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-1">{recipe.title}</h3>
-                    <p className="text-sm text-gray-500 mb-2">
-                      Cooked on {recipe.cookedOn}
+            <div>
+              {historyLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-muted-foreground text-lg">
+                      Loading history...
                     </p>
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="border px-2 py-1 rounded-full text-xs">
-                        {recipe.cuisine}
-                      </span>
-                      {recipe.dietType && (
-                        <span className="bg-bright text-white px-2 py-1 rounded-full text-xs">
-                          {recipe.dietType}
-                        </span>
-                      )}
-                    </div>
                   </div>
-                  <button className="self-start px-3 py-1 border rounded-lg hover:bg-muted text-sm">
-                    Cook Again
-                  </button>
                 </div>
-              ))}
+              ) : recentViews.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Clock className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-2xl font-semibold text-foreground mb-3">
+                    No recent views
+                  </h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Start viewing recipes to see them here!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {recentViews.map((recipe) => (
+                    <RecipeCard
+                      key={recipe.mealid}
+                      idMeal={recipe.mealid}
+                      strMeal={recipe.title}
+                      strMealThumb={recipe.image}
+                      strCategory={recipe.category}
+                      strArea={recipe.area}
+                      isFavorite={favorites.has(recipe.mealid)}
+                      onToggleFavorite={toggleFavorite}
+                      onClick={(id) => navigate(`/app/recipeapi/${id}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -265,55 +623,60 @@ export default function ProfilePage() {
               {/* Account Settings */}
               <div className="bg-card border rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-4">Account Settings</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      defaultValue="Sarah Johnson"
-                      className="mt-1 w-full p-2 border bg-muted rounded-lg"
-                    />
+                {profileLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium">Email</label>
-                    <input
-                      type="email"
-                      defaultValue="sarah@example.com"
-                      className="mt-1 w-full bg-muted p-2 border rounded-lg"
-                    />
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Full Name
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nameInput}
+                          onChange={(e) => setNameInput(e.target.value)}
+                          onBlur={updateUserName}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              updateUserName();
+                              e.target.blur();
+                            }
+                          }}
+                          className="flex-1 p-2 border bg-muted rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                          placeholder="Enter your name"
+                        />
+                        <button
+                          onClick={updateUserName}
+                          disabled={
+                            updatingName ||
+                            !nameInput.trim() ||
+                            nameInput.trim() === userProfile.name
+                          }
+                          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          {updatingName ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Email
+                      </label>
+                      <input
+                        disabled
+                        type="email"
+                        value={userProfile.email || ""}
+                        className="mt-1 w-full bg-muted p-2 border rounded-lg cursor-not-allowed"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Email cannot be changed
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Connected Accounts</h3>
-                    <button className="flex items-center bg-muted gap-2 w-full px-4 py-2 border rounded-xl  mb-2">
-                      <Mail className="w-4 h-4" /> Connect with Google
-                    </button>
-                  
-                  </div>
-                </div>
-              </div>
-
-              {/* Dietary Restrictions */}
-              <div className="bg-card border rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-4">Dietary Restrictions</h2>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    "Vegetarian",
-                    "Vegan",
-                    "Gluten-Free",
-                    "Dairy-Free",
-                    "Keto",
-                    "Paleo",
-                  ].map((diet) => (
-                    <button
-                      key={diet}
-                      className="px-3 py-1 border rounded-full text-sm hover:bg-muted"
-                    >
-                      {diet}
-                    </button>
-                  ))}
-                </div>
+                )}
               </div>
             </div>
           )}

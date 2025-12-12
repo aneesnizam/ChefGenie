@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import (BaseUserManager, AbstractBaseUser, PermissionsMixin)
 from django.conf import settings
 
+
 class UserManager(BaseUserManager):
 
     def create_user(self, email, password=None, **kwargs):
@@ -45,18 +46,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-    
-    
+
 class Profile(models.Model):
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     bio = models.TextField(blank=True)
-    profile_picture = models.ImageField(upload_to='profiles/', blank=True, null=True)
-    dietary_preference = models.CharField( max_length=100, blank=True, help_text='e.g., Vegan, Gluten-Free, etc.')
+    profile_picture = models.ImageField(
+        upload_to='profiles/', blank=True, null=True)
+    dietary_preference = models.CharField(
+        max_length=100, blank=True, help_text='e.g., Vegan, Gluten-Free, etc.')
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
-    
+
+
 class Meal(models.Model):
     mealid = models.CharField(max_length=50, unique=True)
     title = models.CharField(max_length=200)
@@ -67,6 +71,74 @@ class Meal(models.Model):
     image = models.URLField(blank=True, null=True)
     youtube = models.URLField(blank=True, null=True)
     source = models.URLField(blank=True, null=True)
+    is_user_added = models.BooleanField(default=False)
+    
 
     def __str__(self):
         return self.title
+
+
+UNIT_CHOICES = [
+    ('mg', 'milligram'),
+    ('g', 'gram'),
+    ('kg', 'kilogram'),
+    ('oz', 'ounce'),
+    ('lb', 'pound'),
+    ('ml', 'milliliter'),
+    ('l', 'liter'),
+    ('tsp', 'teaspoon'),
+    ('tbsp', 'tablespoon'),
+    ('cup', 'cup'),
+    ('pinch', 'pinch'),
+    ('dash', 'dash'),
+    ('pcs', 'pieces'),
+    ('packet', 'packet'),
+    ('can', 'can'),
+    ('bottle', 'bottle'),
+]
+
+
+class GroceryList(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='grocery_items',
+    )
+
+    ingredient_name = models.CharField(max_length=255)
+    quantity = models.DecimalField(max_digits=7, decimal_places=2)
+    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
+    shop = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return f"{self.ingredient_name} ({self.quantity} {self.unit})"
+    
+    
+class Favorite(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_entries')
+    meal = models.ForeignKey('Meal', on_delete=models.CASCADE, related_name='favorite_entries')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'meal')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} favorited {self.meal.title}"
+
+
+class RecipeView(models.Model):
+    """Track when users view recipes"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recipe_views')
+    meal = models.ForeignKey('Meal', on_delete=models.CASCADE, related_name='views')
+    mealid = models.CharField(max_length=50)  # Store mealid string for quick lookup
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-viewed_at']
+        indexes = [
+            models.Index(fields=['user', '-viewed_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} viewed {self.mealid} at {self.viewed_at}"

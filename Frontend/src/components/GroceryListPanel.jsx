@@ -1,12 +1,33 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import axios from "axios";
+import axiosInstance from "../services/axios";
 
-export default function GroceryListPanel({ recipe, setIsGroceryList, Reciepename }) {
+export default function GroceryListPanel({
+  recipe,
+  setIsGroceryList,
+  Reciepename,
+}) {
   const [groceryList, setGroceryList] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const units = ["cup", "tsp", "tbsp", "g", "kg", "ml", "L", "pcs"];
+  const units = [
+    "mg",
+    "g",
+    "kg",
+    "oz",
+    "lb",
+    "ml",
+    "l",
+    "tsp",
+    "tbsp",
+    "cup",
+    "pinch",
+    "dash",
+    "pcs",
+    "packet",
+    "can",
+    "bottle",
+  ];
 
   // Initialize grocery list from recipe
   useEffect(() => {
@@ -16,6 +37,7 @@ export default function GroceryListPanel({ recipe, setIsGroceryList, Reciepename
         ingredient_name: item.ingredient_name || "",
         quantity: item.quantity || "",
         unit: item.unit || "",
+        shop_type: item.shop_type || "",
       }));
       setGroceryList(initialList);
     }
@@ -34,27 +56,35 @@ export default function GroceryListPanel({ recipe, setIsGroceryList, Reciepename
       setLoading(true);
 
       const filteredIngredients = groceryList
-      .filter(({ quantity }) => {
-        if (quantity === null || quantity === "") return true; // keep null/empty
-        const numericValue = parseFloat(quantity);
-        return !(numericValue === 0 || isNaN(numericValue) && quantity === "0"); // remove 0
-      })
-      .map(({ ingredient_name, quantity, unit }) => ({
-        ingredient_name,
-        quantity,
-        unit,
-      }));
+        .filter(({ quantity }) => {
+          if (quantity === null || quantity === "") return true; // keep null/empty
+          const numericValue = parseFloat(quantity);
+          return !(
+            numericValue === 0 ||
+            (isNaN(numericValue) && quantity === "0")
+          ); // remove 0
+        })
+        .map(({ ingredient_name, quantity, unit, shop_type }) => ({
+          ingredient_name,
+          quantity,
+          unit,
+          shop_type,
+        }));
 
       const payload = {
         recipe_name: Reciepename || "Unnamed Recipe",
         ingredients: filteredIngredients,
       };
 
+      console.log("✅ Grocery list sent:", payload);
       // ✅ Send to backend
-      // const res = await axios.post("http://localhost:5000/api/grocery", payload);
+      const res = await axiosInstance.post(
+        "/api/grocery-list-create/",
+        payload
+      );
+      console.log("✅ Grocery list sent:", res.data);
 
-      // console.log("✅ Grocery list sent:", res.data);
-      console.log(payload)
+      // console.log(payload);
       alert("Grocery list submitted successfully!");
       setIsGroceryList(false);
     } catch (err) {
@@ -87,7 +117,10 @@ export default function GroceryListPanel({ recipe, setIsGroceryList, Reciepename
         {/* Grocery Items */}
         <div className="space-y-3 text-center">
           {groceryList.map((item) => (
-            <div key={item.id} className="flex items-center justify-center gap-3">
+            <div
+              key={item.id}
+              className="flex items-center justify-center gap-3"
+            >
               <input
                 type="text"
                 placeholder="Ingredient"
@@ -109,7 +142,9 @@ export default function GroceryListPanel({ recipe, setIsGroceryList, Reciepename
               />
               <select
                 value={item.unit}
-                disabled={String(item.quantity || '').toLowerCase().includes('taste')}
+                disabled={String(item.quantity || "")
+                  .toLowerCase()
+                  .includes("taste")}
                 onChange={(e) => handleChange(item.id, "unit", e.target.value)}
                 className="border border-border rounded p-1 w-[80px]"
               >

@@ -42,7 +42,7 @@ const RecipeListApi = () => {
             />
             <h3 className="font-semibold mt-2">{recipe.title}</h3>
             <Link
-              to={`/app/recipeapi/${recipe.id}`}
+              to={`/app/recipeapi/${recipe.id}?m=true`}
               className="text-blue-600 text-sm mt-1 inline-block"
             >
               View Details →

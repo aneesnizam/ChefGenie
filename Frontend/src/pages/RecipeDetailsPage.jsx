@@ -120,6 +120,26 @@ export default function RecipeDetailsPage() {
   }, [id, recipe]); // Re-run if ID or recipe changes
 
   /**
+   * Effect to check if recipe is favorited when recipe data is available
+   */
+  useEffect(() => {
+    if (!recipe || !recipe.id) return;
+
+    // Check if recipe is in favorites
+    axiosInstance
+      .get("/api/favorites/")
+      .then((res) => {
+        const favoriteMealIds = new Set(
+          res.data.favorites.map((fav) => fav.meal.mealid)
+        );
+        setIsFavorite(favoriteMealIds.has(recipe.id));
+      })
+      .catch((err) => {
+        console.error("Failed to check favorite status:", err);
+      });
+  }, [recipe]);
+
+  /**
    * Effect to scroll the chat window to the bottom
    * when new messages are added or loading status changes.
    */
@@ -288,8 +308,25 @@ export default function RecipeDetailsPage() {
    * Toggles the recipe's favorite status.
    */
   const toggleFavorite = () => {
-    setIsFavorite((s) => !s);
-    // In a real app, you would also make an API call here to save the status.
+    if (!recipe) return;
+    
+    const mealid = recipe.id; // recipe.id is the mealid (from meal.idMeal)
+    
+    // Optimistically update UI
+    setIsFavorite((prev) => !prev);
+
+    // Make API call to toggle favorite
+    axiosInstance
+      .post("/api/favorites/toggle/", { mealid })
+      .then((res) => {
+        // Update state based on API response
+        setIsFavorite(res.data.is_favorited);
+      })
+      .catch((err) => {
+        // Revert optimistic update on error
+        setIsFavorite((prev) => !prev);
+        console.error("Failed to toggle favorite:", err);
+      });
   };
 
   // --- Render Logic ---
@@ -320,7 +357,7 @@ export default function RecipeDetailsPage() {
       </div>
     );
   }
-
+ 
   // 4. Success State (Main Render)
   return (
     <div className="min-h-screen flex flex-col md:flex-row relative overflow-x-hidden">
@@ -333,6 +370,7 @@ export default function RecipeDetailsPage() {
       >
         {/* --- Image Header --- */}
         <div className="relative h-96 overflow-hidden">
+          
           <img
             src={recipe.image}
             alt={recipe.title}
@@ -343,6 +381,7 @@ export default function RecipeDetailsPage() {
                 "https://static.vecteezy.com/system/resources/previews/013/224/085/non_2x/recipe-book-on-wooden-table-background-banner-free-vector.jpg";
             }}
           />
+          
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
           {/* --- Recipe Info Box (overlaps image) --- */}
@@ -582,12 +621,15 @@ export default function RecipeDetailsPage() {
           </div>
         </aside>
       )}
+     
       {isingredientsList && (
+        
         <GroceryListPanel
           recipe={aiIngredients}
           setIsGroceryList={setIsIngredientsList}
-          Reciepename={recipe.title}
+          Reciepename={recipe.id}
         />
+        
       )}
     </div>
   );

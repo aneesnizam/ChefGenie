@@ -1,5 +1,6 @@
+from google.ai.generativelanguage_v1beta.types import permission
 from rest_framework import viewsets
-from rest_framework import status
+from rest_framework import status, permissions
 import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,62 +8,131 @@ import google.generativeai as genai
 from django.conf import settings
 import json
 import re
+from core.models import Meal, GroceryList, Favorite, RecipeView
+from core.serializers import MealSerializer, GroceryListSerializer, FavoriteSerializer, RecipeViewSerializer
+from django.db.models import Q
+from django.db import transaction
+from decimal import Decimal, InvalidOperation, getcontext
+from fractions import Fraction
+
 
 try:
     genai.configure(api_key=settings.GEMINI_API_KEY)
 except AttributeError:
     print("FATAL ERROR: Gemini API key not configured. Check settings.py")
-   
-    
-    
+
+
 class HomeRecipes(APIView):
-    def get(self,request):
-        url = 'https://www.themealdb.com/api/json/v1/1/filter.php?a=Indian'
-        
+    def get(self, request):
+        meal = Meal.objects.all().order_by('-id')[:4]
         try:
-            response = requests.get(url)
-            data = response.json()
-            
-            meals = data.get('meals',[])[1:5]
-            return Response(meals,status = status.HTTP_200_OK)
+            serializer = MealSerializer(meal, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except requests.exceptions.RequestException as e:
             return Response({
-                "error":"Failed to fetch recipes"
-            },status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+                "error": "Failed to fetch recipes"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class RecipeDetail(APIView):
-    def get(self,request,id):
-        url = f'https://www.themealdb.com/api/json/v1/1/lookup.php?i={id}'
-        
+    def get(self, request, id):
         try:
-            response = requests.get(url)
-            data = response.json()
-            meals = data.get('meals',[])
-    
-            return Response(meals,status = status.HTTP_200_OK)
-        except requests.exceptions.RequestException as e:
-            return Response({
-                "error":"Failed to fetch recipes"
-            },status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Search meal by mealid (string in your JSON data)
+            meal = Meal.objects.filter(mealid=id).first()
+
+            if not meal:
+                return Response(
+                    {"error": f"No recipe found with id '{id}'."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Track recipe view if user is authenticated
+            # Wrap in try-except to prevent errors from breaking recipe loading
+            if request.user.is_authenticated:
+                try:
+                    RecipeView.objects.create(
+                        user=request.user,
+                        meal=meal,
+                        mealid=id
+                    )
+                except Exception as view_error:
+                    # Log the error but don't fail the request
+                    print(f"Failed to track recipe view: {str(view_error)}")
+                    # Continue without tracking the view
+
+            serializer = MealSerializer(meal)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"RecipeDetail error: {str(e)}")
+            return Response(
+                {"error": f"Failed to fetch recipe: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class RecipeFilter(APIView):
-    def get(self,request,name):
-        url=f"https://www.themealdb.com/api/json/v1/1/search.php?s={name}"
-        
+    def get(self, request, name):
         try:
-            response = requests.get(url)
-            data = response.json()
-            meals = data.get('meals',[])
-            return Response(meals,status=status.HTTP_200_OK)
-        except requests.exceptions.RequestException as e:
-            return Response({
-                "error":"Failed to fetch recipes"
-            },status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Search meals by name (case-insensitive)
+            meals = Meal.objects.filter(title__icontains=name)
+
+            if not meals.exists():
+                return Response(
+                    {"message": f"No recipes found for '{name}'."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            serializer = MealSerializer(meals, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch recipes: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class IngredientsFilter(APIView):
+    def get(self, request, ingredients):
+        try:
+            # Split comma-separated ingredients and clean spaces
+            ingredient_list = [i.strip()
+                               for i in ingredients.split(",") if i.strip()]
+
+            if not ingredient_list:
+                return Response(
+                    {"message": "No ingredients provided."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Build query dynamically using Q objects for partial, case-insensitive match
+            query = Q()
+            for ing in ingredient_list:
+                query &= Q(ingredients__icontains=ing)
+
+            # Filter meals where all ingredients match (partial match)
+            meals = Meal.objects.filter(query).distinct()
+
+            if not meals.exists():
+                return Response(
+                    {"message": f"No recipes found with ingredients: {', '.join(ingredient_list)}."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            serializer = MealSerializer(meals, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch recipes: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class GeminiChat(APIView):
 
-    
     # 2. Define your system instructions
     system_instructions = """
     You are a helpful cooking and recipe assistant.
@@ -97,19 +167,20 @@ class GeminiChat(APIView):
                 model_name="gemini-2.5-flash",
                 system_instruction=self.system_instructions
             )
-            
+
             # 5. Generate the response using the full history
             response = model.generate_content(
                 api_messages  # Pass the list of messages directly
             )
-            
+
             # 6. Return the text
             return Response({"reply": response.text}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print("Gemini error:", e)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
 class GeminiRecipeDetail(APIView):
     # System instructions for Gemini
     system_instructions = """
@@ -153,7 +224,6 @@ class GeminiRecipeDetail(APIView):
     9. Always output valid JSON that can be parsed directly in Python.
     """
 
-
     def post(self, request):
         prompt = request.data.get("prompt", "").strip()
         if not prompt:
@@ -170,7 +240,8 @@ class GeminiRecipeDetail(APIView):
             )
 
             # Generate response for the single prompt
-            response = model.generate_content([{"role": "user", "parts": [prompt]}])
+            response = model.generate_content(
+                [{"role": "user", "parts": [prompt]}])
 
             # Extract JSON from text
             text = response.text.strip()
@@ -195,8 +266,8 @@ class GeminiRecipeDetail(APIView):
         except Exception as e:
             print("Gemini error:", e)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        
+
+
 class RecipeAIChat(APIView):
     system_instructions = """
         You are a helpful cooking and recipe assistant.
@@ -215,7 +286,8 @@ class RecipeAIChat(APIView):
             return Response({"error": "Missing 'messages' list."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Transform to Gemini format
-        api_messages = [{"role": m["role"], "parts": [m["content"]]} for m in messages]
+        api_messages = [{"role": m["role"], "parts": [m["content"]]}
+                        for m in messages]
 
         try:
             model = genai.GenerativeModel(
@@ -229,38 +301,48 @@ class RecipeAIChat(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
-class GroceryList(APIView):
+class GenerateGroceryList(APIView):
     system_instructions = """
-    You are an expert in food ingredient classification and grocery organization.
-    The user will send a list of ingredients in plain text form.
-    For each ingredient, identify and extract the following fields:
-    - quantity: Numeric or fractional part (e.g., "1", "½", "¼").
-    - unit: Measurement unit (e.g., "cup", "tsp", "tbsp", "g", "ml").
-    - ingredient_name: The actual ingredient name.
-    - shop_type: Category of shop to buy from (choose one: "Supermarket", "Spices Store", "Vegetable Market", "Dairy Shop", "Meat Shop", "Bakery", or "Others").
+        You are an expert in food ingredient classification and grocery organization.
 
-    Return output strictly as a valid JSON array of objects.
-    Example:
-    Input:
-    ["¼ cup Vegetable oil", "2 tsp Cumin seeds"]
+        The user will send a list of ingredients in plain text form.  
+        For each ingredient, you must extract the following fields:
 
-    Output:
-    [
-      {
-        "quantity": "¼",
-        "unit": "cup",
-        "ingredient_name": "Vegetable oil",
-        "shop_type": "Supermarket"
-      },
-      {
-        "quantity": "2",
-        "unit": "tsp",
-        "ingredient_name": "Cumin seeds",
-        "shop_type": "Spices Store"
-      }
-    ]
-    """
+        - quantity: The numeric or fractional amount (e.g., "1", "½", "1/4").
+        - unit: The measurement unit. IMPORTANT: You must choose ONLY from the following allowed units:
+            ["mg", "g", "kg", "oz", "lb", "ml", "l", "tsp", "tbsp", "cup", "pinch", "dash", "pcs", "packet", "can", "bottle"]
+        - ingredient_name: The cleaned ingredient name without quantity or unit.
+        - shop_type: One of the following categories:
+            ["Supermarket", "Spices Store", "Vegetable Market", "Dairy Shop", "Meat Shop", "Bakery", "Others"]
+
+        Rules:
+        - If no unit is found, set unit to "pcs" by default.
+        - Always normalize units to EXACTLY one of the allowed units above.
+        - Do NOT invent new units.
+        - Do NOT include extra text in output; return only structured fields.
+
+        Return the final result strictly as a valid JSON array of objects.
+
+        Example:
+        Input:
+        ["¼ cup Vegetable oil", "2 tsp Cumin seeds"]
+
+        Output:
+        [
+        {
+            "quantity": "¼",
+            "unit": "cup",
+            "ingredient_name": "Vegetable oil",
+            "shop_type": "Supermarket"
+        },
+        {
+            "quantity": "2",
+            "unit": "tsp",
+            "ingredient_name": "Cumin seeds",
+            "shop_type": "Spices Store"
+        }
+        ]
+        """
 
     def post(self, request):
         ingredients = request.data.get("ingredients", [])
@@ -275,7 +357,8 @@ class GroceryList(APIView):
             )
 
             # Build clean input prompt for the model
-            prompt = "Sort and structure these ingredients:\n" + json.dumps(ingredients, ensure_ascii=False)
+            prompt = "Sort and structure these ingredients:\n" + \
+                json.dumps(ingredients, ensure_ascii=False)
             response = model.generate_content(prompt)
 
             # Try to extract valid JSON from response
@@ -283,13 +366,15 @@ class GroceryList(APIView):
                 parsed_output = json.loads(response.text)
             except json.JSONDecodeError:
                 match = re.search(r'\[.*\]', response.text, re.DOTALL)
-                parsed_output = json.loads(match.group(0)) if match else {"error": "Failed to parse AI response"}
+                parsed_output = json.loads(match.group(0)) if match else {
+                    "error": "Failed to parse AI response"}
 
             return Response({"ingredients_sorted": parsed_output}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
 class SpoonacularRecipes(APIView):
     def get(self, request):
         ingredients = request.GET.get('ingredients', '')
@@ -310,3 +395,299 @@ class SpoonacularRecipeDetail(APIView):
         params = {"apiKey": settings.SPOONACULAR_API_KEY}
         response = requests.get(url, params=params)
         return Response(response.json())
+
+
+
+
+getcontext().prec = 9
+
+def parse_quantity_to_decimal(q):
+    """
+    Accepts numbers or strings like: "100", "1.5", "1/2", "1 1/2"
+    Returns a Decimal or raises ValueError on invalid input.
+    """
+    if q is None or (isinstance(q, str) and q.strip() == ""):
+        raise ValueError("Quantity is required")
+
+    # if already Decimal or int/float
+    if isinstance(q, Decimal):
+        return q
+    if isinstance(q, (int, float)):
+        return Decimal(str(q))
+
+    s = str(q).strip()
+    # Mixed number like "1 1/2"
+    if " " in s:
+        parts = s.split()
+        if len(parts) == 2:
+            whole, frac = parts
+            try:
+                f = Fraction(frac)
+                total = Fraction(int(whole)) + f
+                return Decimal(total.numerator) / Decimal(total.denominator)
+            except Exception:
+                pass
+
+    # simple fraction like "1/2"
+    if "/" in s:
+        try:
+            f = Fraction(s)
+            return Decimal(f.numerator) / Decimal(f.denominator)
+        except Exception as e:
+            raise ValueError(f"Invalid fraction quantity: {q}") from e
+
+    # decimal or integer string
+    try:
+        return Decimal(s)
+    except (InvalidOperation, ValueError) as e:
+        raise ValueError(f"Invalid numeric quantity: {q}") from e
+
+
+
+class GroceryListCreate(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        payload = request.data
+        # recipe_name is ignored (no meal_name field in your model)
+        ingredients = payload.get("ingredients") or []
+
+        if not isinstance(ingredients, (list, tuple)) or len(ingredients) == 0:
+            return Response(
+                {"detail": "ingredients must be a non-empty list."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = []
+        updated = []
+        errors = []
+
+        with transaction.atomic():
+            for idx, item in enumerate(ingredients):
+                raw_name = (item.get("ingredient_name") or "").strip()
+                raw_unit = (item.get("unit") or "").strip()
+                raw_shop = item.get("shop_type") or item.get("shop") or ""
+                raw_qty = item.get("quantity")
+
+                # Basic validation
+                if not raw_name:
+                    errors.append({"index": idx, "error": "ingredient_name is required", "data": item})
+                    continue
+                if not raw_unit:
+                    errors.append({"index": idx, "error": "unit is required", "data": item})
+                    continue
+
+                # Parse quantity (supports "1/2", "1 1/2", "100", "1.5")
+                try:
+                    qty_decimal = parse_quantity_to_decimal(raw_qty)
+                except ValueError as e:
+                    errors.append({"index": idx, "error": str(e), "data": item})
+                    continue
+
+                # Try to find existing item: same user, same ingredient (case-insensitive), same unit
+                existing = GroceryList.objects.filter(
+                    user=request.user,
+                    ingredient_name__iexact=raw_name,
+                    unit=raw_unit
+                ).first()
+
+                if existing:
+                    # add quantities
+                    old_qty = existing.quantity or Decimal("0")
+                    new_qty = (old_qty + qty_decimal).quantize(Decimal("0.01"))
+                    existing.quantity = new_qty
+                    # update shop only if provided and non-empty
+                    if raw_shop:
+                        existing.shop = raw_shop
+                        existing.save(update_fields=["quantity", "shop"])
+                    else:
+                        existing.save(update_fields=["quantity"])
+                    updated.append({
+                        "id": existing.id,
+                        "ingredient_name": existing.ingredient_name,
+                        "unit": existing.unit,
+                        "old_quantity": str(old_qty),
+                        "new_quantity": str(new_qty),
+                        "shop": existing.shop,
+                    })
+                else:
+                    # build data for serializer (use Decimal for quantity so serializer's DecimalField accepts it)
+                    data = {
+                        "ingredient_name": raw_name,
+                        "quantity": qty_decimal,
+                        "unit": raw_unit,
+                        "shop": raw_shop,
+                    }
+                    serializer = GroceryListSerializer(data=data)
+                    if serializer.is_valid():
+                        obj = serializer.save(user=request.user)
+                        created.append(GroceryListSerializer(obj).data)
+                    else:
+                        errors.append({"index": idx, "errors": serializer.errors, "data": data})
+
+            # if any validation errors occurred, rollback and return them
+            if errors:
+                transaction.set_rollback(True)
+                return Response(
+                    {"detail": "Some ingredients failed validation", "errors": errors},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response({"created": created, "updated": updated}, status=status.HTTP_201_CREATED)
+
+    def get(self, request):
+        items = GroceryList.objects.filter(user=request.user)
+        serializer = GroceryListSerializer(items, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        """
+        Delete a single grocery item belonging to the logged-in user.
+        Endpoint: DELETE /api/grocery-list-create/<pk>/
+        """
+        if pk is None:
+            return Response(
+                {"detail": "Please provide an ingredient ID: /api/grocery-list-create/<id>/"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            item = GroceryList.objects.get(id=pk, user=request.user)
+        except GroceryList.DoesNotExist:
+            return Response(
+                {"detail": "Grocery item not found or not owned by the user."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        item.delete()
+        return Response({"detail": "Item deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class ListFavorites(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        Get all favorites for the authenticated user.
+        Returns a list of favorite meals ordered by most recently added.
+        """
+        try:
+            favorites = Favorite.objects.filter(user=request.user).order_by('-created_at')
+            serializer = FavoriteSerializer(favorites, many=True)
+            return Response(
+                {
+                    "count": favorites.count(),
+                    "favorites": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch favorites: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ToggleFavorite(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Toggle favorite status for a meal.
+        If meal is favorited, remove it. If not favorited, add it.
+        Expected payload: {"mealid": "string"}
+        Returns: {"is_favorited": bool, "message": "string", "favorite": object or null}
+        """
+        mealid = request.data.get("mealid")
+        
+        if not mealid:
+            return Response(
+                {"error": "Missing 'mealid' in request."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Find meal by mealid (string identifier)
+            meal = Meal.objects.filter(mealid=mealid).first()
+            
+            if not meal:
+                return Response(
+                    {"error": f"No meal found with mealid '{mealid}'."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Check if favorite already exists
+            favorite = Favorite.objects.filter(
+                user=request.user,
+                meal=meal
+            ).first()
+
+            if favorite:
+                # Remove favorite
+                favorite.delete()
+                return Response(
+                    {
+                        "is_favorited": False,
+                        "message": "Meal removed from favorites.",
+                        "favorite": None
+                    },
+                    status=status.HTTP_200_OK
+                )
+            else:
+                # Add favorite
+                favorite = Favorite.objects.create(
+                    user=request.user,
+                    meal=meal
+                )
+                serializer = FavoriteSerializer(favorite)
+                return Response(
+                    {
+                        "is_favorited": True,
+                        "message": "Meal added to favorites.",
+                        "favorite": serializer.data
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to toggle favorite: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class RecentRecipeViews(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        Get the 5 most recent recipe views for the authenticated user.
+        Returns a list of viewed meals ordered by most recently viewed.
+        """
+        try:
+            # Get 5 most recent views, removing duplicates (latest view per meal)
+            views = RecipeView.objects.filter(user=request.user).order_by('-viewed_at')
+            
+            # Remove duplicates, keeping the most recent view for each mealid
+            seen_mealids = set()
+            unique_views = []
+            for view in views:
+                if view.mealid not in seen_mealids:
+                    unique_views.append(view)
+                    seen_mealids.add(view.mealid)
+                if len(unique_views) >= 5:
+                    break
+
+            serializer = RecipeViewSerializer(unique_views, many=True)
+            return Response(
+                {
+                    "count": len(unique_views),
+                    "views": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch recent views: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

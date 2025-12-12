@@ -11,8 +11,8 @@ const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'recipes', label: 'Recipes', icon: BookOpen },
     { id: 'chat', label: 'Chat', icon: MessageCircle },
-    { id: 'planner', label: 'Planner', icon: Calendar },
-     { id: 'add', label: 'Add Recipe', icon: PlusCircle  },
+    // { id: 'planner', label: 'Planner', icon: Calendar },
+    //  { id: 'add', label: 'Add Recipe', icon: PlusCircle  },
     { id: 'profile', label: 'Profile', icon: User },
   ];
 
