@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import HomeRecipes, RecipeDetail, RecipeFilter, GeminiChat, GeminiRecipeDetail, RecipeAIChat, GenerateGroceryList, SpoonacularRecipeDetail, SpoonacularRecipes, IngredientsFilter, GroceryListCreate, ListFavorites, ToggleFavorite, RecentRecipeViews, SaveAIRecipe, ListAIRecipes, ShareAIRecipe, DeleteAIRecipe
+from .views import HomeRecipes, RecipeDetail, RecipeFilter, GeminiChat, GeminiRecipeDetail, RecipeAIChat, GenerateGroceryList, SpoonacularRecipeDetail, SpoonacularRecipes, IngredientsFilter, GroceryListCreate, ListFavorites, ToggleFavorite, RecentRecipeViews, SaveAIRecipe, ListAIRecipes, ShareAIRecipe, UnshareAIRecipe, DeleteAIRecipe
 
 
 urlpatterns = [
@@ -26,6 +26,7 @@ urlpatterns = [
     path('ai-recipes/save/', SaveAIRecipe.as_view(), name="save_ai_recipe"),
     path('ai-recipes/', ListAIRecipes.as_view(), name="list_ai_recipes"),
     path('ai-recipes/share/', ShareAIRecipe.as_view(), name="share_ai_recipe"),
+    path('ai-recipes/unshare/', UnshareAIRecipe.as_view(), name="unshare_ai_recipe"),
     path('ai-recipes/<int:meal_id>/',
          DeleteAIRecipe.as_view(), name="delete_ai_recipe"),
 ]

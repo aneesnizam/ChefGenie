@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Sparkles, Share2, Trash2, User } from "lucide-react";
+import { Sparkles, Trash2, User } from "lucide-react";
 import RecipeCard from "../components/RecipeCard";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../services/axios";
+import thumbnail from "../assets/img/AI Food1.png";
 
 export default function AIGeneratedRecipesPage() {
   const navigate = useNavigate();
@@ -88,12 +89,37 @@ export default function AIGeneratedRecipesPage() {
       await axiosInstance.post("/api/ai-recipes/share/", { meal_id: mealId });
       // Refresh recipes
       await fetchRecipes();
-      alert("Recipe shared successfully!");
+      // alert("Recipe shared successfully!");
     } catch (err) {
       console.error("Failed to share recipe:", err);
       alert("Failed to share recipe. Please try again.");
     } finally {
       setSharingId(null);
+    }
+  };
+
+  const handleUnshare = async (mealId) => {
+    setSharingId(mealId);
+    try {
+      await axiosInstance.post("/api/ai-recipes/unshare/", { meal_id: mealId });
+      // Refresh recipes
+      await fetchRecipes();
+      // alert("Recipe unshared successfully!");
+    } catch (err) {
+      console.error("Failed to unshare recipe:", err);
+      alert("Failed to unshare recipe. Please try again.");
+    } finally {
+      setSharingId(null);
+    }
+  };
+
+  const handleToggleShare = (recipe) => {
+    if (recipe.is_public) {
+      if (window.confirm("Are you sure you want to make this recipe private?")) {
+        handleUnshare(recipe.id);
+      }
+    } else {
+      handleShare(recipe.id);
     }
   };
 
@@ -136,21 +162,19 @@ export default function AIGeneratedRecipesPage() {
           <div className="inline-flex items-center bg-card rounded-xl p-1 border-2 border-border shadow-sm">
             <button
               onClick={() => setViewMode("my")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
-                viewMode === "my"
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${viewMode === "my"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-muted"
+                }`}
             >
               My AI Recipes
             </button>
             <button
               onClick={() => setViewMode("public")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
-                viewMode === "public"
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${viewMode === "public"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-muted"
+                }`}
             >
               Public AI Recipes
             </button>
@@ -190,7 +214,7 @@ export default function AIGeneratedRecipesPage() {
                 <RecipeCard
                   idMeal={recipe.mealid}
                   strMeal={recipe.title}
-                  strMealThumb={"https://i.pinimg.com/1200x/50/2d/9a/502d9a8cf410d2fb347d5e1fff548f44.jpg"}
+                  strMealThumb={thumbnail}
                   strCategory={
                     Array.isArray(recipe.category)
                       ? recipe.category.join(", ")
@@ -204,20 +228,45 @@ export default function AIGeneratedRecipesPage() {
 
                 {/* Action Buttons - Only show for user's own recipes in "my" view */}
                 {viewMode === "my" && (
-                  <div className="absolute bottom-16 right-3 flex gap-2 z-10">
-                    {!recipe.is_public && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleShare(recipe.id);
-                        }}
-                        disabled={sharingId === recipe.id}
-                        className="p-2 rounded-full bg-green-500 text-white shadow-lg hover:bg-green-600 transition disabled:opacity-50"
-                        title="Share with Friends"
+                  <div className="absolute bottom-16 right-3 flex gap-2 z-10 items-center">
+                    {/* Public Toggle with Label */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (sharingId !== recipe.id) {
+                          handleToggleShare(recipe);
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-md cursor-pointer transition-all duration-200 border ${recipe.is_public
+                          ? "bg-green-100 border-green-200 hover:bg-green-200"
+                          : "bg-white border-gray-200 hover:bg-gray-50"
+                        } ${sharingId === recipe.id
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                        }`}
+                      title={
+                        recipe.is_public
+                          ? "Public (Click to make private)"
+                          : "Private (Click to share)"
+                      }
+                    >
+                      <span
+                        className={`text-xs font-semibold ${recipe.is_public ? "text-green-700" : "text-gray-600"
+                          }`}
                       >
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                    )}
+                        {recipe.is_public ? "Public" : "Private"}
+                      </span>
+                      <div
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${recipe.is_public ? "bg-green-500" : "bg-gray-300"
+                          }`}
+                      >
+                        <span
+                          className={`${recipe.is_public ? "translate-x-4" : "translate-x-1"
+                            } inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200`}
+                        />
+                      </div>
+                    </div>
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Settings, Heart, ShoppingCart, Clock, Mail } from "lucide-react";
+import { User, Settings, Heart, ShoppingCart, Clock, Mail, LogOut } from "lucide-react";
 import RecipeCard from "../components/RecipeCard"; // assuming RecipeCard is already JSX compatible
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../services/axios";
@@ -257,6 +257,13 @@ export default function ProfilePage() {
     }
   };
 
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to log out?")) {
+      localStorage.removeItem("tokens");
+      navigate("/login");
+    }
+  };
+
   // Fetch favorites on mount and when favorites tab is active
   useEffect(() => {
     if (activeTab === "favorites") {
@@ -335,9 +342,9 @@ export default function ProfilePage() {
 
                     <div>
                       <p className="text-2xl font-bold">
-                        {userProfile.days_active}
+
                       </p>
-                      <p className="text-sm text-gray-500">Days Active</p>
+
                     </div>
                   </div>
                 </>
@@ -353,11 +360,10 @@ export default function ProfilePage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                  activeTab === tab
-                    ? "bg-bright dark: text-white"
-                    : "bg-gray-100 dark:bg-muted"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${activeTab === tab
+                  ? "bg-bright dark: text-white"
+                  : "bg-gray-100 dark:bg-muted"
+                  }`}
               >
                 {tab === "favorites" && <Heart className="w-4 h-4" />}
                 {tab === "grocery" && <ShoppingCart className="w-4 h-4" />}
@@ -525,9 +531,8 @@ export default function ProfilePage() {
                                   const ingredientKey =
                                     ingredient.id ||
                                     `${listKey}-${shop}-${idx}`;
-                                  const quantityLabel = `${
-                                    ingredient.quantity || "--"
-                                  } ${ingredient.unit || ""}`.trim();
+                                  const quantityLabel = `${ingredient.quantity || "--"
+                                    } ${ingredient.unit || ""}`.trim();
                                   return (
                                     <div
                                       key={ingredientKey}
@@ -576,69 +581,67 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "history" && (
-  <div>
-    
-    {historyLoading ? (
-  <div className="flex justify-center items-center py-20">
-    <div className="text-center">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p className="text-muted-foreground text-lg">
-        Loading history...
-      </p>
-    </div>
-  </div>
-) : recentViews.length === 0 ? (
-  <div className="text-center py-20">
-    <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-      <Clock className="w-10 h-10 text-muted-foreground" />
-    </div>
-    <h3 className="text-2xl font-semibold text-foreground mb-3">
-      No recent views
-    </h3>
-    <p className="text-muted-foreground max-w-md mx-auto">
-      Start viewing recipes to see them here!
-    </p>
-  </div>
-) : (
-  // 🔥 VERTICAL FULL-WIDTH LIST (NO GRID)
-  <div className="space-y-6">
-    {recentViews.map((recipe) => (
-      <div
-        key={recipe.mealid}
-        onClick={() => navigate(`/app/recipeapi/${recipe.mealid}`)}
-        className="w-full bg-card rounded-2xl border border-border p-4 flex gap-4 hover:shadow-md transition-shadow cursor-pointer"
-      >
-        <img
-          src={recipe.image || "https://i.pinimg.com/1200x/93/10/14/931014d8e72841cf1cef6b2942e68322.jpg"}
-          alt={recipe.title}
-          className="w-24 h-24 rounded-lg object-cover"
-        />
+            <div>
 
-        <div className="flex-1">
-          <h3 className="font-semibold mb-1">{recipe.title}</h3>
+              {historyLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-muted-foreground text-lg">
+                      Loading history...
+                    </p>
+                  </div>
+                </div>
+              ) : recentViews.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Clock className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-2xl font-semibold text-foreground mb-3">
+                    No recent views
+                  </h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Start viewing recipes to see them here!
+                  </p>
+                </div>
+              ) : (
+                // 🔥 VERTICAL FULL-WIDTH LIST (NO GRID)
+                <div className="space-y-6">
+                  {recentViews.map((recipe) => (
+                    <div
+                      key={recipe.mealid}
+                      onClick={() => navigate(`/app/recipeapi/${recipe.mealid}`)}
+                      className="w-full bg-card rounded-2xl border border-border p-4 flex gap-4 hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      <img
+                        src={recipe.image || "https://i.pinimg.com/1200x/93/10/14/931014d8e72841cf1cef6b2942e68322.jpg"}
+                        alt={recipe.title}
+                        className="w-24 h-24 rounded-lg object-cover"
+                      />
 
-          <p className="text-sm text-muted-foreground mb-2">
-            {recipe.category} • {recipe.area}
-          </p>
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">{recipe.title}</h3>
 
-          <div className="flex gap-2">
-            <span className="px-2 py-1 text-xs border rounded-md">
-              {recipe.category}
-            </span>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {recipe.category} • {recipe.area}
+                        </p>
 
-            <span className="px-2 py-1 text-xs bg-secondary text-white rounded-md">
-              Viewed recently
-            </span>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)}
-</div>
-)}
+                        <div className="flex gap-2">
+                          <span className="px-2 py-1 text-xs border rounded-md">
+                            {recipe.category}
+                          </span>
 
-
+                          <span className="px-2 py-1 text-xs bg-secondary text-white rounded-md">
+                            Viewed recently
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {activeTab === "settings" && (
             <div className="space-y-6">
@@ -699,6 +702,26 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Logout Button */}
+              <div className="bg-card border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-4 text-red-600">Danger Zone</h2>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Sign out of your account</p>
+                    <p className="text-sm text-muted-foreground">
+                      You will need to log in again to access your account.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
+                </div>
               </div>
             </div>
           )}

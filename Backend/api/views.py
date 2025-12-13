@@ -897,6 +897,55 @@ class ShareAIRecipe(APIView):
             )
 
 
+class UnshareAIRecipe(APIView):
+    """Unshare an AI-generated recipe (make it private)"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Mark a recipe as private.
+        Expected payload: {"meal_id": int} (Django's primary key)
+        """
+        try:
+            meal_id = request.data.get('meal_id')
+
+            if not meal_id:
+                return Response(
+                    {"error": "Missing 'meal_id' in request."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            meal = Meal.objects.filter(
+                id=meal_id,
+                user=request.user,
+                is_user_added=True
+            ).first()
+
+            if not meal:
+                return Response(
+                    {"error": "Recipe not found or you don't have permission."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            meal.is_public = False
+            meal.save()
+
+            serializer = MealSerializer(meal)
+            return Response(
+                {
+                    "message": "Recipe unshared successfully",
+                    "meal": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to unshare recipe: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class DeleteAIRecipe(APIView):
     """Delete an AI-generated recipe"""
     permission_classes = [permissions.IsAuthenticated]
