@@ -11,7 +11,7 @@ export default function RecipeLibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [allRecipes, setAllRecipes] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("s"));
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("s") || "");
   const [viewMode, setViewMode] = useState("grid");
   const [favorites, setFavorites] = useState(new Set());
   const [areaFilter, setAreaFilter] = useState("all");
@@ -102,7 +102,7 @@ export default function RecipeLibraryPage() {
   const searchResults = async (ingredientMode = false) => {
     if (!searchQuery.trim()) return;
     setLoading(true);
-    setSearchParams({s:searchQuery})
+    setSearchParams({ s: searchQuery })
     try {
       const endpoint = ingredientMode
         ? `/api/ingredientfilter/${searchQuery}/`
@@ -175,75 +175,71 @@ export default function RecipeLibraryPage() {
         {/* Search & Filters */}
         <div className="mb-10 space-y-6">
           {/* Search Bar */}
-        <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
-  {/* Search Bar Container */}
-  <div className="relative w-full">
-    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-    <input
-      type="text"
-      placeholder={
-        isIngredientMode
-          ? "Search recipes by ingredients..."
-          : "Search recipes by name, cuisine..."
-      }
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      onKeyDown={(e) => e.key === "Enter" && searchResults(isIngredientMode)}
-      className="w-full h-14 pl-12 pr-36 rounded-2xl bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
-    />
-    <button
-      onClick={() => searchResults(isIngredientMode)}
-      disabled={loading}
-      className="absolute right-2 top-1/2 -translate-y-1/2 h-10 bg-primary text-primary-foreground px-4 rounded-xl hover:bg-primary/90 active:scale-95 transition-all flex items-center gap-2 font-medium disabled:opacity-50"
-    >
-      {loading ? (
-        "..."
-      ) : (
-        <>
-          <Search className="w-4 h-4" />
-          Search
-        </>
-      )}
-    </button>
-  </div>
+          <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
+            {/* Search Bar Container */}
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder={
+                  isIngredientMode
+                    ? "Search recipes by ingredients..."
+                    : "Search recipes by name, cuisine..."
+                }
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchResults(isIngredientMode)}
+                className="w-full h-14 pl-12 pr-36 rounded-2xl bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
+              />
+              <button
+                onClick={() => searchResults(isIngredientMode)}
+                disabled={loading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 bg-primary text-primary-foreground px-4 rounded-xl hover:bg-primary/90 active:scale-95 transition-all flex items-center gap-2 font-medium disabled:opacity-50"
+              >
+                {loading ? (
+                  "..."
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    Search
+                  </>
+                )}
+              </button>
+            </div>
 
-  {/* Toggle Container */}
-  <div className="flex justify-end">
-    <div
-      className="flex items-center gap-3 bg-card px-4 py-2 rounded-full shadow-sm border border-border cursor-pointer hover:shadow-md transition-all"
-      onClick={() => setIsIngredientMode(!isIngredientMode)}
-    >
-      <span
-        className={`text-sm font-medium transition-colors ${
-          !isIngredientMode ? "text-primary" : "text-muted-foreground"
-        }`}
-      >
-        Normal
-      </span>
+            {/* Toggle Container */}
+            <div className="flex justify-end">
+              <div
+                className="flex items-center gap-3 bg-card px-4 py-2 rounded-full shadow-sm border border-border cursor-pointer hover:shadow-md transition-all"
+                onClick={() => setIsIngredientMode(!isIngredientMode)}
+              >
+                <span
+                  className={`text-sm font-medium transition-colors ${!isIngredientMode ? "text-primary" : "text-muted-foreground"
+                    }`}
+                >
+                  Normal
+                </span>
 
-      {/* The Switch */}
-      <div
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${
-          isIngredientMode ? "bg-green-500" : "bg-primary/20"
-        }`}
-      >
-        <div
-          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${
-            isIngredientMode ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </div>
+                {/* The Switch */}
+                <div
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${isIngredientMode ? "bg-green-500" : "bg-primary/20"
+                    }`}
+                >
+                  <div
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${isIngredientMode ? "translate-x-5" : "translate-x-0"
+                      }`}
+                  />
+                </div>
 
-      <span
-        className={`text-sm font-medium transition-colors ${
-          isIngredientMode ? "text-green-600" : "text-muted-foreground"
-        }`}
-      >
-        Ingredients
-      </span>
-    </div>
-  </div>
-</div>
+                <span
+                  className={`text-sm font-medium transition-colors ${isIngredientMode ? "text-green-600" : "text-muted-foreground"
+                    }`}
+                >
+                  Ingredients
+                </span>
+              </div>
+            </div>
+          </div>
 
           {/* Filters & View Mode */}
           <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
@@ -284,7 +280,7 @@ export default function RecipeLibraryPage() {
                     <option key={i} value={cat}>
                       {cat}
                     </option>
-})}
+                  })}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   <svg
@@ -298,31 +294,29 @@ export default function RecipeLibraryPage() {
                 </div>
               </div>
 
-              
+
             </div>
 
 
-            
+
 
             {/* View Mode */}
             <div className="flex gap-2 bg-card rounded-xl p-1 border-2 border-border shadow-sm">
               <button
-                className={`p-3 rounded-lg transition-all duration-200 flex items-center gap-2 ${
-                  viewMode === "grid"
+                className={`p-3 rounded-lg transition-all duration-200 flex items-center gap-2 ${viewMode === "grid"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:bg-muted"
-                }`}
+                  }`}
                 onClick={() => setViewMode("grid")}
               >
                 <Grid3x3 className="w-4 h-4" />
                 <span className="text-sm font-medium">Grid</span>
               </button>
               <button
-                className={`p-3 rounded-lg transition-all duration-200 flex items-center gap-2 ${
-                  viewMode === "list"
+                className={`p-3 rounded-lg transition-all duration-200 flex items-center gap-2 ${viewMode === "list"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:bg-muted"
-                }`}
+                  }`}
                 onClick={() => setViewMode("list")}
               >
                 <List className="w-4 h-4" />

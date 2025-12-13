@@ -43,8 +43,8 @@ const formatRecipeData = (meal) => {
     title: meal.title,
     image: meal.image,
     description: `A delicious ${meal.area || ""} ${Array.isArray(meal.category)
-        ? meal.category.join(", ")
-        : meal.category || ""
+      ? meal.category.join(", ")
+      : meal.category || ""
       } dish.`,
     cuisine: meal.area || "Unknown",
     dietType: Array.isArray(meal.category)
@@ -171,11 +171,7 @@ export default function RecipeDetailApi() {
           if (res.data && res.data.title) {
             const formattedRecipe = formatRecipeData(res.data);
             setRecipe(formattedRecipe);
-            // Store recipe metadata to check if it's user's AI recipe
-            // Check if this is user's AI-generated recipe
-            if (res.data.is_user_added && res.data.user) {
-              setIsMyRecipe(true);
-            }
+
           } else {
             setError("Recipe not found in database.");
           }
@@ -489,8 +485,8 @@ export default function RecipeDetailApi() {
                   {!isSpoonacular && (
                     <button
                       className={`rounded-full w-12 h-12 flex items-center justify-center border ${isFavorite
-                          ? "bg-red-500 text-white"
-                          : "border-gray-300 text-gray-500"
+                        ? "bg-red-500 text-white"
+                        : "border-gray-300 text-gray-500"
                         }`}
                       onClick={toggleFavorite}
                       aria-label="Toggle favorite"
@@ -568,8 +564,8 @@ export default function RecipeDetailApi() {
                       <label
                         htmlFor={`ing-${ing.id}`}
                         className={`cursor-pointer ${checkedIngredients.has(ing.id)
-                            ? "text-black dark:text-white font-medium" // Style for 'need to buy'
-                            : " text-gray-500 " // Style for 'already have'
+                          ? "text-black dark:text-white font-medium" // Style for 'need to buy'
+                          : " text-gray-500 " // Style for 'already have'
                           }`}
                       >
                         {ing.item}
@@ -655,8 +651,8 @@ export default function RecipeDetailApi() {
               >
                 <div
                   className={`inline-block p-3 rounded-xl  ${m.type === "user"
-                      ? "bg-purple-500 text-white"
-                      : "bg-card border border-border "
+                    ? "bg-purple-500 text-white"
+                    : "bg-card border border-border "
                     }`}
                 >
                   <div className=" text-sm whitespace-pre-wrap text-justify">
@@ -693,8 +689,8 @@ export default function RecipeDetailApi() {
               onClick={handleSendChat}
               disabled={chatLoading || !chatInput.trim()}
               className={`h-fit px-4 py-2 rounded-md text-white  ${chatLoading || !chatInput.trim()
-                  ? "bg-gradient-to-br from-purple-300 to-pink-300 cursor-not-allowed"
-                  : "bg-gradient-to-br from-purple-500 to-pink-500"
+                ? "bg-gradient-to-br from-purple-300 to-pink-300 cursor-not-allowed"
+                : "bg-gradient-to-br from-purple-500 to-pink-500"
                 }`}
             >
               {chatLoading ? "...." : "Send"}
