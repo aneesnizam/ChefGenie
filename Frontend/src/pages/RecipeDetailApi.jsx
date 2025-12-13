@@ -5,8 +5,6 @@ import {
   ShoppingCart,
   Sparkles,
   X,
-  Share2,
-  Trash2,
 } from "lucide-react";
 import {
   useLocation,
@@ -18,7 +16,7 @@ import GroceryListPanel from "../components/GroceryListPanel";
 import axiosInstance from "../services/axios";
 
 // --- Utility Function ---
- 
+
 const formatRecipeData = (meal) => {
   if (!meal) return null;
 
@@ -44,11 +42,10 @@ const formatRecipeData = (meal) => {
     mealid: meal.mealid || meal.id, // Use mealid if available, fallback to id
     title: meal.title,
     image: meal.image,
-    description: `A delicious ${meal.area || ""} ${
-      Array.isArray(meal.category)
+    description: `A delicious ${meal.area || ""} ${Array.isArray(meal.category)
         ? meal.category.join(", ")
         : meal.category || ""
-    } dish.`,
+      } dish.`,
     cuisine: meal.area || "Unknown",
     dietType: Array.isArray(meal.category)
       ? meal.category.join(", ")
@@ -99,7 +96,7 @@ export default function RecipeDetailApi() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [params] = useSearchParams();
-  // console.log(Boolean(params.get("m")))
+
   const [isSpoonacular, setIsSpoonacular] = useState(Boolean(params.get("m")));
 
   // Recipe data
@@ -115,16 +112,12 @@ export default function RecipeDetailApi() {
     location.state?.meals || location.state?.isAIGenerated
   );
   // Recipe metadata from backend
-  const [recipeMeta, setRecipeMeta] = useState(null);
-  const [isMyRecipe, setIsMyRecipe] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  // const isSpoonacular = Boolean(params);
+
 
   // UI interaction state
   const [isFavorite, setIsFavorite] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState(new Set());
-  const [groceryList, setGroceryList] = useState([]); // Note: This state is set but not currently used in the JSX.
+
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isingredientsList, setIsIngredientsList] = useState(false);
   const [aiIngredients, setAiIngredients] = useState({});
@@ -163,29 +156,26 @@ export default function RecipeDetailApi() {
       try {
         if (isSpoonacular) {
           // Fetch from Spoonacular
-          console.log("check", isSpoonacular);
-          console.log("spoon");
+
           const res = await axiosInstance.get(`/api/spoonculardetail/${id}/`);
           if (res.data && res.data.title) {
             setRecipe(formatSpoonacularRecipe(res.data));
-            console.log(formatSpoonacularRecipe(res.data));
+
           } else {
             setError("Recipe not found in Spoonacular.");
           }
         } else {
           // Fetch from MealDB
-          console.log("meal");
+
           const res = await axiosInstance.get(`/api/recipedetail/${id}/`);
           if (res.data && res.data.title) {
             const formattedRecipe = formatRecipeData(res.data);
             setRecipe(formattedRecipe);
             // Store recipe metadata to check if it's user's AI recipe
-            setRecipeMeta(res.data);
             // Check if this is user's AI-generated recipe
             if (res.data.is_user_added && res.data.user) {
               setIsMyRecipe(true);
             }
-            console.log(formatRecipeData(res.data));
           } else {
             setError("Recipe not found in database.");
           }
@@ -274,14 +264,13 @@ export default function RecipeDetailApi() {
     // 5. Create the API payload with recipe context
     const recipeContext = {
       role: "model",
-      content: `Recipe context:\nTitle: ${recipe.title}\nCuisine: ${
-        recipe.cuisine
-      }\nCategory: ${recipe.dietType}\nIngredients:\n${recipe.ingredients
-        .map((i) => `- ${i.item}`)
-        .join("\n")}\nSteps:\n${recipe.steps
-        .slice(0, 20)
-        .map((s) => `${s.id}. ${s.instruction}`)
-        .join("\n")}`,
+      content: `Recipe context:\nTitle: ${recipe.title}\nCuisine: ${recipe.cuisine
+        }\nCategory: ${recipe.dietType}\nIngredients:\n${recipe.ingredients
+          .map((i) => `- ${i.item}`)
+          .join("\n")}\nSteps:\n${recipe.steps
+            .slice(0, 20)
+            .map((s) => `${s.id}. ${s.instruction}`)
+            .join("\n")}`,
     };
 
     const historyMessages = newMessagesForApi.map((msg) => ({
@@ -293,7 +282,7 @@ export default function RecipeDetailApi() {
 
     try {
       // 6. Send to API
-      console.log("Sending payload:", { messages: apiMessages });
+
       const res = await axiosInstance.post("/api/detail-page-ai/", {
         messages: apiMessages,
       });
@@ -384,7 +373,7 @@ export default function RecipeDetailApi() {
       .then((res) => {
         setAiIngredients(res.data.ingredients_sorted);
         setIsIngredientsList(true);
-        console.log(res.data.ingredients_sorted);
+        ;
       })
       .catch(() => setError("Failed to load recipe. Please try again later."))
       .finally(() => setGeneratelistloading(false));
@@ -457,9 +446,8 @@ export default function RecipeDetailApi() {
       {/* --- Left / Main column --- */}
       {/* Adjusts width based on chat panel visibility */}
       <div
-        className={`w-full ${
-          isChatOpen ? "md:w-2/3" : "md:w-full"
-        } transition-all duration-300`}
+        className={`w-full ${isChatOpen ? "md:w-2/3" : "md:w-full"
+          } transition-all duration-300`}
       >
         {/* --- Image Header --- */}
         <div className="relative h-96 overflow-hidden">
@@ -496,22 +484,20 @@ export default function RecipeDetailApi() {
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
                   {/* Share and Delete buttons for user's AI recipes */}
-               
+
                   {/* Favorite Button - Only show for non-Spoonacular recipes */}
                   {!isSpoonacular && (
                     <button
-                      className={`rounded-full w-12 h-12 flex items-center justify-center border ${
-                        isFavorite
+                      className={`rounded-full w-12 h-12 flex items-center justify-center border ${isFavorite
                           ? "bg-red-500 text-white"
                           : "border-gray-300 text-gray-500"
-                      }`}
+                        }`}
                       onClick={toggleFavorite}
                       aria-label="Toggle favorite"
                     >
                       <Heart
-                        className={`w-6 h-6 ${
-                          isFavorite ? "fill-current" : ""
-                        }`}
+                        className={`w-6 h-6 ${isFavorite ? "fill-current" : ""
+                          }`}
                       />
                     </button>
                   )}
@@ -549,7 +535,7 @@ export default function RecipeDetailApi() {
                 <Play className="w-5 h-5" /> Cook Mode (No Video)
               </button>
             )}
- 
+
 
             <button
               onClick={() => setIsChatOpen(true)} // Opens AI chat
@@ -566,7 +552,7 @@ export default function RecipeDetailApi() {
               <div className="bg-card rounded-2xl p-6 border sticky top-6">
                 <h2 className="font-semibold mb-4">Ingredients</h2>
                 <p className="text-sm text-gray-500 mb-3">
-                  Check items you need to buy. 
+                  Check items you need to buy.
                 </p>
 
                 <div className="space-y-3">
@@ -581,11 +567,10 @@ export default function RecipeDetailApi() {
                       />
                       <label
                         htmlFor={`ing-${ing.id}`}
-                        className={`cursor-pointer ${
-                          checkedIngredients.has(ing.id)
+                        className={`cursor-pointer ${checkedIngredients.has(ing.id)
                             ? "text-black dark:text-white font-medium" // Style for 'need to buy'
                             : " text-gray-500 " // Style for 'already have'
-                        }`}
+                          }`}
                       >
                         {ing.item}
                       </label>
@@ -597,11 +582,10 @@ export default function RecipeDetailApi() {
                   onClick={generateGroceryList}
                   disabled={generatelistloading || checkedIngredients.size < 1}
                   className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-white transition 
-    ${
-      generatelistloading || checkedIngredients.size < 1
-        ? "cursor-not-allowed bg-gray-600"
-        : "bg-purple-600 hover:bg-purple-700"
-    }`}
+    ${generatelistloading || checkedIngredients.size < 1
+                      ? "cursor-not-allowed bg-gray-600"
+                      : "bg-purple-600 hover:bg-purple-700"
+                    }`}
                 >
                   <ShoppingCart className="w-5 h-5" />
                   {!generatelistloading ? "Generate List" : "Generating..."}
@@ -666,25 +650,22 @@ export default function RecipeDetailApi() {
             {chatMessages.map((m) => (
               <div
                 key={m.id}
-                className={`max-w-fit flex flex-col ${
-                  m.type === "user" ? "ml-auto text-right" : ""
-                }`}
+                className={`max-w-fit flex flex-col ${m.type === "user" ? "ml-auto text-right" : ""
+                  }`}
               >
                 <div
-                  className={`inline-block p-3 rounded-xl  ${
-                    m.type === "user"
+                  className={`inline-block p-3 rounded-xl  ${m.type === "user"
                       ? "bg-purple-500 text-white"
                       : "bg-card border border-border "
-                  }`}
+                    }`}
                 >
                   <div className=" text-sm whitespace-pre-wrap text-justify">
                     {m.content}
                   </div>
                 </div>
                 <div
-                  className={` text-xs text-muted-foreground mt-1 ${
-                    m.type === "user" ? "" : "float-right"
-                  }`}
+                  className={` text-xs text-muted-foreground mt-1 ${m.type === "user" ? "" : "float-right"
+                    }`}
                 >
                   {m.type === "user" ? "You" : "Assistant"}
                 </div>
@@ -711,11 +692,10 @@ export default function RecipeDetailApi() {
             <button
               onClick={handleSendChat}
               disabled={chatLoading || !chatInput.trim()}
-              className={`h-fit px-4 py-2 rounded-md text-white  ${
-                chatLoading || !chatInput.trim()
+              className={`h-fit px-4 py-2 rounded-md text-white  ${chatLoading || !chatInput.trim()
                   ? "bg-gradient-to-br from-purple-300 to-pink-300 cursor-not-allowed"
                   : "bg-gradient-to-br from-purple-500 to-pink-500"
-              }`}
+                }`}
             >
               {chatLoading ? "...." : "Send"}
             </button>

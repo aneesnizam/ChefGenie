@@ -77,7 +77,7 @@ export default function ChatPage() {
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
-      // setInputValue(transcript);
+
       handleSendMessage(transcript)
     };
   }, []);
@@ -115,24 +115,24 @@ export default function ChatPage() {
       content: "ChefGenie is thinking...",
       timestamp: new Date(),
     };
-    
+
     // 4. This will hold the correct, up-to-date list for the API
-  const newMessagesForApi = [...messages, userMessage];
-  const apiMessages = newMessagesForApi.map((msg) => ({
-    role: msg.type === "user" ? "user" : "model",
-    content: msg.content,
-  }));
+    const newMessagesForApi = [...messages, userMessage];
+    const apiMessages = newMessagesForApi.map((msg) => ({
+      role: msg.type === "user" ? "user" : "model",
+      content: msg.content,
+    }));
 
-  // ✅ Update UI immediately
-  setMessages((prev) => [...prev, userMessage, typingMessage]);
+    // ✅ Update UI immediately
+    setMessages((prev) => [...prev, userMessage, typingMessage]);
 
-  if (!promptContent) setInputValue("");
+    if (!promptContent) setInputValue("");
 
-  try {
-    console.log("Sending payload:", { messages: apiMessages });
-    const response = await axiosInstance.post("/api/chatbot/", {
-      messages: apiMessages,
-    });
+    try {
+      console.log("Sending payload:", { messages: apiMessages });
+      const response = await axiosInstance.post("/api/chatbot/", {
+        messages: apiMessages,
+      });
 
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
@@ -194,9 +194,8 @@ export default function ChatPage() {
 
                 {/* Message */}
                 <div
-                  className={`flex-1 max-w-lg p-4 rounded-2xl ${
-                    msg.type === "user" ? "bg-purple-500 text-white" : "bg-card border border-border"
-                  }`}
+                  className={`flex-1 max-w-lg p-4 rounded-2xl ${msg.type === "user" ? "bg-purple-500 text-white" : "bg-card border border-border"
+                    }`}
                 >
                   {msg.id === "typing" ? (
                     <div className="flex items-center space-x-2">
@@ -210,9 +209,8 @@ export default function ChatPage() {
 
                   {msg.id !== "typing" && (
                     <p
-                      className={`text-xs mt-2 ${
-                        msg.type === "user" ? "text-white/70" : "text-muted-foreground"
-                      }`}
+                      className={`text-xs mt-2 ${msg.type === "user" ? "text-white/70" : "text-muted-foreground"
+                        }`}
                     >
                       {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
@@ -239,9 +237,8 @@ export default function ChatPage() {
 
             <button
               onClick={handleMicClick}
-              className={`rounded-full w-12 h-12 border flex items-center justify-center transition-all ${
-                isListening ? "bg-red-500 text-white animate-pulse" : "hover:bg-accent"
-              }`}
+              className={`rounded-full w-12 h-12 border flex items-center justify-center transition-all ${isListening ? "bg-red-500 text-white animate-pulse" : "hover:bg-accent"
+                }`}
             >
               <Mic className="w-5 h-5" />
             </button>

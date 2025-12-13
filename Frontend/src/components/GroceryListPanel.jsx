@@ -84,7 +84,7 @@ export default function GroceryListPanel({
       );
       console.log("✅ Grocery list sent:", res.data);
 
-      // console.log(payload);
+
       alert("Grocery list submitted successfully!");
       setIsGroceryList(false);
     } catch (err) {

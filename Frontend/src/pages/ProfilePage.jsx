@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Settings, Heart, ShoppingCart, Clock, Mail, LogOut } from "lucide-react";
+import { User, Settings, Heart, ShoppingCart, Clock, LogOut } from "lucide-react";
 import RecipeCard from "../components/RecipeCard"; // assuming RecipeCard is already JSX compatible
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../services/axios";
@@ -33,6 +33,7 @@ export default function ProfilePage() {
 
   const navigate = useNavigate();
 
+  // Toggles favorite status for a recipe with optimistic UI update
   const toggleFavorite = (id) => {
     // Optimistically update UI
     setFavorites((prev) => {
@@ -92,6 +93,7 @@ export default function ProfilePage() {
       });
   };
 
+  // Helper to normalize grocery list API response structure
   const normalizeGroceryResponse = (data) => {
     if (Array.isArray(data)) {
       const looksLikeIngredients = data.every(
@@ -146,6 +148,7 @@ export default function ProfilePage() {
     }
   };
 
+  // Removes an ingredient from a specific grocery list
   const handleRemoveIngredient = async (ingredient, parentListId) => {
     if (!ingredient?.id) {
       alert("Unable to remove this ingredient because it has no ID yet.");

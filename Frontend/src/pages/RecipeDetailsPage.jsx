@@ -6,6 +6,7 @@ import axiosInstance from "../services/axios";
 
 // --- Utility Function ---
 
+// Transforms API meal data into app-standard recipe format
 const formatRecipeData = (meal) => {
   if (!meal) return null;
 
@@ -68,7 +69,7 @@ export default function RecipeDetailsPage() {
   // UI interaction state
   const [isFavorite, setIsFavorite] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState(new Set());
-  const [groceryList, setGroceryList] = useState([]); // Note: This state is set but not currently used in the JSX.
+
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isingredientsList, setIsIngredientsList] = useState(false);
   const [aiIngredients, setAiIngredients] = useState({});
@@ -188,14 +189,13 @@ export default function RecipeDetailsPage() {
     // 5. Create the API payload with recipe context
     const recipeContext = {
       role: "model",
-      content: `Recipe context:\nTitle: ${recipe.title}\nCuisine: ${
-        recipe.cuisine
-      }\nCategory: ${recipe.dietType}\nIngredients:\n${recipe.ingredients
-        .map((i) => `- ${i.item}`)
-        .join("\n")}\nSteps:\n${recipe.steps
-        .slice(0, 20)
-        .map((s) => `${s.id}. ${s.instruction}`)
-        .join("\n")}`,
+      content: `Recipe context:\nTitle: ${recipe.title}\nCuisine: ${recipe.cuisine
+        }\nCategory: ${recipe.dietType}\nIngredients:\n${recipe.ingredients
+          .map((i) => `- ${i.item}`)
+          .join("\n")}\nSteps:\n${recipe.steps
+            .slice(0, 20)
+            .map((s) => `${s.id}. ${s.instruction}`)
+            .join("\n")}`,
     };
 
     const historyMessages = newMessagesForApi.map((msg) => ({
@@ -298,7 +298,7 @@ export default function RecipeDetailsPage() {
       .then((res) => {
         setAiIngredients(res.data.ingredients_sorted);
         setIsIngredientsList(true);
-         console.log(res.data.ingredients_sorted)
+        console.log(res.data.ingredients_sorted)
       })
       .catch(() => setError("Failed to load recipe. Please try again later."))
       .finally(() => setGeneratelistloading(false));
@@ -309,9 +309,9 @@ export default function RecipeDetailsPage() {
    */
   const toggleFavorite = () => {
     if (!recipe) return;
-    
+
     const mealid = recipe.id; // recipe.id is the mealid (from meal.idMeal)
-    
+
     // Optimistically update UI
     setIsFavorite((prev) => !prev);
 
@@ -357,20 +357,19 @@ export default function RecipeDetailsPage() {
       </div>
     );
   }
- 
+
   // 4. Success State (Main Render)
   return (
     <div className="min-h-screen flex flex-col md:flex-row relative overflow-x-hidden">
       {/* --- Left / Main column --- */}
       {/* Adjusts width based on chat panel visibility */}
       <div
-        className={`w-full ${
-          isChatOpen ? "md:w-2/3" : "md:w-full"
-        } transition-all duration-300`}
+        className={`w-full ${isChatOpen ? "md:w-2/3" : "md:w-full"
+          } transition-all duration-300`}
       >
         {/* --- Image Header --- */}
         <div className="relative h-96 overflow-hidden">
-          
+
           <img
             src={recipe.image}
             alt={recipe.title}
@@ -381,7 +380,7 @@ export default function RecipeDetailsPage() {
                 "https://static.vecteezy.com/system/resources/previews/013/224/085/non_2x/recipe-book-on-wooden-table-background-banner-free-vector.jpg";
             }}
           />
-          
+
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
           {/* --- Recipe Info Box (overlaps image) --- */}
@@ -404,11 +403,10 @@ export default function RecipeDetailsPage() {
                 </div>
                 {/* Favorite Button */}
                 <button
-                  className={`rounded-full w-12 h-12 flex items-center justify-center border ${
-                    isFavorite
+                  className={`rounded-full w-12 h-12 flex items-center justify-center border ${isFavorite
                       ? "bg-red-500 text-white"
                       : "border-gray-300 text-gray-500"
-                  }`}
+                    }`}
                   onClick={toggleFavorite}
                   aria-label="Toggle favorite"
                 >
@@ -480,11 +478,10 @@ export default function RecipeDetailsPage() {
                       />
                       <label
                         htmlFor={`ing-${ing.id}`}
-                        className={`cursor-pointer ${
-                          checkedIngredients.has(ing.id)
+                        className={`cursor-pointer ${checkedIngredients.has(ing.id)
                             ? "text-black dark:text-white font-medium" // Style for 'need to buy'
                             : " text-gray-500 " // Style for 'already have'
-                        }`}
+                          }`}
                       >
                         {ing.item}
                       </label>
@@ -496,11 +493,10 @@ export default function RecipeDetailsPage() {
                   onClick={generateGroceryList}
                   disabled={generatelistloading || checkedIngredients.size < 1}
                   className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-white transition 
-    ${
-      generatelistloading || checkedIngredients.size < 1
-        ? "cursor-not-allowed bg-gray-600"
-        : "bg-purple-600 hover:bg-purple-700"
-    }`}
+    ${generatelistloading || checkedIngredients.size < 1
+                      ? "cursor-not-allowed bg-gray-600"
+                      : "bg-purple-600 hover:bg-purple-700"
+                    }`}
                 >
                   <ShoppingCart className="w-5 h-5" />
                   {!generatelistloading ? "Generate List" : "Generating..."}
@@ -565,25 +561,22 @@ export default function RecipeDetailsPage() {
             {chatMessages.map((m) => (
               <div
                 key={m.id}
-                className={`max-w-fit flex flex-col ${
-                  m.type === "user" ? "ml-auto text-right" : ""
-                }`}
+                className={`max-w-fit flex flex-col ${m.type === "user" ? "ml-auto text-right" : ""
+                  }`}
               >
                 <div
-                  className={`inline-block p-3 rounded-xl  ${
-                    m.type === "user"
+                  className={`inline-block p-3 rounded-xl  ${m.type === "user"
                       ? "bg-purple-500 text-white"
                       : "bg-card border border-border "
-                  }`}
+                    }`}
                 >
                   <div className=" text-sm whitespace-pre-wrap text-justify">
                     {m.content}
                   </div>
                 </div>
                 <div
-                  className={` text-xs text-muted-foreground mt-1 ${
-                    m.type === "user" ? "" : "float-right"
-                  }`}
+                  className={` text-xs text-muted-foreground mt-1 ${m.type === "user" ? "" : "float-right"
+                    }`}
                 >
                   {m.type === "user" ? "You" : "Assistant"}
                 </div>
@@ -610,26 +603,25 @@ export default function RecipeDetailsPage() {
             <button
               onClick={handleSendChat}
               disabled={chatLoading || !chatInput.trim()}
-              className={`h-fit px-4 py-2 rounded-md text-white  ${
-                chatLoading || !chatInput.trim()
+              className={`h-fit px-4 py-2 rounded-md text-white  ${chatLoading || !chatInput.trim()
                   ? "bg-gradient-to-br from-purple-300 to-pink-300 cursor-not-allowed"
                   : "bg-gradient-to-br from-purple-500 to-pink-500"
-              }`}
+                }`}
             >
               {chatLoading ? "...." : "Send"}
             </button>
           </div>
         </aside>
       )}
-     
+
       {isingredientsList && (
-        
+
         <GroceryListPanel
           recipe={aiIngredients}
           setIsGroceryList={setIsIngredientsList}
           Reciepename={recipe.id}
         />
-        
+
       )}
     </div>
   );
